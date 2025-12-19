@@ -6,8 +6,7 @@ A simple ECS library made quickly to test whether I can build something smaller 
 
 ## How to Compile
 
-cmake -S . -B build
-
+cmake -S . -B build\
 cmake --build build --config Release
 
 ## Code Example
@@ -42,3 +41,32 @@ int main(){
     return 0;
 }
 ```
+
+## Benchmarks
+
+[ECS] Update Systems: 11.803 ms \
+[EnTT] [View] Update Systems: 40.090 ms \
+[EnTT] [Group] Update Systems: 163.362 ms \
+[Flecs] Update Systems: 9.162 ms
+
+[ECS] Single Get Component: 49.677 ms \
+[EnTT] Single Get Component: 128.631 ms \
+[Flecs] Single Get Component: 164.311 ms
+
+[ECS] [Single] Create Entity With Componets: 874.042 ms \
+[ECS] [Batched] Create Entity With Componets: 200.089 ms \
+[EnTT] Create Entity With Componets: 282.993 ms \
+[Flecs] Create Entity With Componets: 1503.238 ms
+
+[ECS] Destroy Entity With Componets: 42.562 ms \
+[EnTT] Destroy Entity With Componets: 357.265 ms \
+[Flecs] Destroy Entity With Componets: 70.974 ms
+
+### Benchmarks Notes
+
+All test are using equivalent entt and flecs function comparated to my library \
+The goal is test the speed of the individual entt and flecs functions and my equivalent functions \
+So: \
+world.GetComponent == registry.get<Position> \
+world.GetComponent != view.get<Position> \
+world.GetComponent != group.get<Position> 

@@ -148,7 +148,7 @@ void BenchmarkECS_CreateEntityWithComponets(){
     for(uint32_t i = 0; i < N; ++i) {
         Entity e = world.CreateEntity();
 
-        #if 0
+        #if 1
         //Slow
         world.AddComponent(e, Position{1,2,3});
         world.AddComponent(e, Velocity{4,5,6});
@@ -175,7 +175,30 @@ void BenchmarkECS_CreateEntityWithComponets(){
     }
 
     double ms = t.elapsed_ms();
-    std::printf("[ECS] %s: %.3f ms\n", createEntityWithComponentLabel, ms);
+    std::printf("[ECS] [Single] %s: %.3f ms\n", createEntityWithComponentLabel, ms);
+}
+
+void BenchmarkECS_CreateEntityWithComponets_Batched(){
+    World world;
+
+    Timer t;
+    for(uint32_t i = 0; i < N; ++i) {
+        Entity e = world.CreateEntity();
+        world.AddMultComponent(
+            e, 
+            Position{1,2,3}, 
+            Velocity{4,5,6},
+            Position2{1,2,3}, 
+            Velocity2{4,5,6},
+            Position3{1,2,3}, 
+            Velocity3{4,5,6},
+            Position4{1,2,3}, 
+            Velocity4{4,5,6}
+        );
+    }
+
+    double ms = t.elapsed_ms();
+    std::printf("[ECS] [Batched] %s: %.3f ms\n", createEntityWithComponentLabel, ms);
 }
 
 void BenchmarkECS_DestroyEntityWithComponets(){
@@ -229,7 +252,7 @@ void BenchmarkEnTT(){
     Timer t;
 
     auto view = registry.view<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
-    view.each([&](auto e, auto& p, auto& v, auto& p2, auto& v2, auto& p3, auto& v3, auto& p4, auto& v4){
+    view.each([](auto e, auto& p, auto& v, auto& p2, auto& v2, auto& p3, auto& v3, auto& p4, auto& v4){
         p.x += v.x;
         p.y += v.y;
         p.z += v.z;
@@ -428,23 +451,20 @@ void BenchmarkFlecs(){
     Timer t;
 
     // Query = closest equivalent to EnTT view
-    auto q = ecs.query<
-        Position, Velocity,
-        Position2, Velocity2,
-        Position3, Velocity3,
-        Position4, Velocity4
-    >();
-
-    q.each([](
-        Position& p,  Velocity& v,
-        Position2& p2, Velocity2& v2,
-        Position3& p3, Velocity3& v3,
-        Position4& p4, Velocity4& v4
-    ) {
-        p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-        p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-        p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
-        p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+    auto q = ecs.query<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
+    q.each([](Position& p,  Velocity& v, Position2& p2, Velocity2& v2, Position3& p3, Velocity3& v3, Position4& p4, Velocity4& v4){
+        p.x += v.x;  
+        p.y += v.y;  
+        p.z += v.z;
+        p2.x += v2.x; 
+        p2.y += v2.y; 
+        p2.z += v2.z;
+        p3.x += v3.x; 
+        p3.y += v3.y; 
+        p3.z += v3.z;
+        p4.x += v4.x; 
+        p4.y += v4.y; 
+        p4.z += v4.z;
     });
 
     double ms = t.elapsed_ms();
@@ -483,17 +503,37 @@ void BenchmarkFlecs_SingleGet(){
         auto& p4 = e.get_mut<Position4>();
         auto& v4 = e.get_mut<Velocity4>();
 
-        p.x  += 1.0f; p.y  += 2.0f; p.z  += 3.0f;
-        v.x  += 1.0f; v.y  += 2.0f; v.z  += 3.0f;
+        p.x += 1.0f; 
+        p.y += 2.0f; 
+        p.z += 3.0f;
 
-        p2.x += 1.0f; p2.y += 2.0f; p2.z += 3.0f;
-        v2.x += 1.0f; v2.y += 2.0f; v2.z += 3.0f;
+        v.x += 1.0f; 
+        v.y += 2.0f; 
+        v.z += 3.0f;
 
-        p3.x += 1.0f; p3.y += 2.0f; p3.z += 3.0f;
-        v3.x += 1.0f; v3.y += 2.0f; v3.z += 3.0f;
+        p2.x += 1.0f; 
+        p2.y += 2.0f; 
+        p2.z += 3.0f;
+        
+        v2.x += 1.0f; 
+        v2.y += 2.0f; 
+        v2.z += 3.0f;
 
-        p4.x += 1.0f; p4.y += 2.0f; p4.z += 3.0f;
-        v4.x += 1.0f; v4.y += 2.0f; v4.z += 3.0f;
+        p3.x += 1.0f; 
+        p3.y += 2.0f; 
+        p3.z += 3.0f;
+        
+        v3.x += 1.0f; 
+        v3.y += 2.0f; 
+        v3.z += 3.0f;
+
+        p4.x += 1.0f; 
+        p4.y += 2.0f; 
+        p4.z += 3.0f;
+        
+        v4.x += 1.0f; 
+        v4.y += 2.0f; 
+        v4.z += 3.0f;
     }
 
     double ms = t.elapsed_ms();
@@ -551,7 +591,6 @@ void BenchmarkFlecs_DestroyEntityWithComponents(){
     std::printf("[Flecs] %s: %.3f ms\n", destroyEntityWithComponentLabel, ms);
 }
 
-
 int main(){
     RegisterComponent<Position>();
     RegisterComponent<Velocity>();
@@ -562,16 +601,12 @@ int main(){
     RegisterComponent<Position4>();
     RegisterComponent<Velocity4>();
 
-    //All test are using equivalent entt function comparated to my library
-    //The goal is test the speed of the individual entt functions and my equivalent functions
+    //All test are using equivalent entt and flecs function comparated to my library
+    //The goal is test the speed of the individual entt and flecs functions and my equivalent functions
     // So:
-    // compare world.GetComponent == registry.get<Position>
+    // world.GetComponent == registry.get<Position>
     // world.GetComponent != view.get<Position>
     // world.GetComponent != group.get<Position>
-
-    //In BenchmarkECS_CreateEntityWithComponets i use a all small "cheat" to test(AddMultComponent), what in entt i dont think is something fucntion like that
-    //, but you can disable this "cheat" with "#if 1", what is more slow than entt, but AddMultComponent still valid comparation, 
-    //i think very common to want add mult component at once, in any game or other project
 
     std::printf("\n");
     BenchmarkECS();
@@ -586,6 +621,7 @@ int main(){
     std::printf("\n");
 
     BenchmarkECS_CreateEntityWithComponets();
+    BenchmarkECS_CreateEntityWithComponets_Batched();
     BenchmarkEnTT_CreateEntityWithComponets();
     BenchmarkFlecs_CreateEntityWithComponents();
     std::printf("\n");

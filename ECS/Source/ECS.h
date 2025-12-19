@@ -128,6 +128,15 @@ struct Signature{
         return true;
     }
 
+    bool Intersects(const Signature& other) const {
+        for(size_t i = 0; i < NumChunks; ++i){
+            if(bits[i] & other.bits[i]){
+                return true;
+            }
+        }
+        return false;
+    }
+
     template<typename... Cs>
     static Signature Make(){
         Signature sig;
@@ -344,6 +353,70 @@ struct View {
                 Entity e = arch.entities[i];
                 std::apply(
                     [&](auto*... arr) {
+                        func(e, arr->data[i]...);
+                    },
+                    arrays
+                );
+            }
+        }
+    }
+};
+
+////////////////////////////////
+
+template<typename... Ts>
+struct Exclude {};
+
+template<typename... Ts>
+constexpr Exclude<Ts...> exclude{};
+
+template<typename... Cs>
+struct ViewWithExclude {
+    World* world;
+    Signature include;
+    Signature exclude;
+
+    template<typename... Es>
+    ViewWithExclude(World* w, Exclude<Es...>):world(w){
+        (include.set(GetComponentID<Cs>()), ...);
+        (exclude.set(GetComponentID<Es>()), ...);
+    }
+
+    template<typename Func>
+    void Each(Func&& func){
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(include)) continue;
+            if(arch.signature.Intersects(exclude)) continue;
+
+            auto arrays = std::tuple{ arch.Get<Cs>()... };
+
+            for(size_t i = 0; i < arch.Size(); ++i){
+                std::apply(
+                    [&](auto*... arr){
+                        func(arr->data[i]...);
+                    },
+                    arrays
+                );
+            }
+        }
+    }
+
+    template<typename Func>
+    void EachWithEntity(Func&& func){
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(include)) continue;
+            if(arch.signature.Intersects(exclude)) continue;
+
+            auto arrays = std::tuple{ arch.Get<Cs>()... };
+
+            for(size_t i = 0; i < arch.Size(); ++i){
+                Entity e = arch.entities[i];
+                std::apply(
+                    [&](auto*... arr){
                         func(e, arr->data[i]...);
                     },
                     arrays
@@ -587,6 +660,11 @@ struct World {
     template<typename... Cs>
     auto GetView(){
         return View<Cs...>(this);
+    }
+
+    template<typename... Cs, typename... Es>
+    auto GetViewWithExclude(Exclude<Es...>) {
+        return ViewWithExclude<Cs...>{ this, Exclude<Es...>{} };
     }
 
 };

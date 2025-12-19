@@ -17,6 +17,14 @@ struct Health {
     int value = 100;
 };
 
+struct Renderable {
+    int data = 0;
+};
+
+struct Disabled {
+    int data = 0;
+};
+
 // Shared fixture
 class ECSTest : public ::testing::Test {
 protected:
@@ -29,6 +37,8 @@ protected:
             RegisterComponent<Position>();
             RegisterComponent<Velocity>();
             RegisterComponent<Health>();
+            RegisterComponent<Renderable>();
+            RegisterComponent<Disabled>();
             registered = true;
         }
     }

@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_CXX_STANDARD 17)
 
+#if(MSVC)
+    add_compile_options(/permissive- /Zc:preprocessor /Zc:__cplusplus)
+#endif()
+
 #----------------ECS------------------
 project(ECS)
 file(GLOB_RECURSE ECS_SOURCE_FILES 
