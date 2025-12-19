@@ -70,3 +70,11 @@ So: \
 world.GetComponent == registry.get<Position> \
 world.GetComponent != view.get<Position> \
 world.GetComponent != group.get<Position> 
+
+## Goal of this ECS Library
+* As fast as possible
+* Small (less than 1500 lines of code), which makes it a good learning resource and very easy to modify
+* Only core ECS features — the goal is not to compete with EnTT or Flecs in terms of feature count
+
+## License
+This project is licensed under the MIT License — see the LICENSE file for details.
