@@ -1,35 +1,3 @@
-//my api .h
-/*DLL_API int GetNewID();
-
-template<typename T>
-void RegisterComponente(){
-    T::GetTypeID() = GetNewID();
-}
-
-template<typename T>
-int GetComponenteID(){
-    return T::GetTypeID();
-}
-
-//my api .cpp
-static int counter;
-int GetNewID(){
-    return counter++;
-}
-
-// My Comp.h
-struct DLL_API MyComp{
-    static int& GetTypeID();
-};
-
-// My Comp.cpp
-static int g_MyCompTypeID = -1;
-
-int& MyComp::GetTypeID() {
-    return g_MyCompTypeID;
-}*/
-
-
 #pragma once
 #include <cstdint>
 #include <bitset>
