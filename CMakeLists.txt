@@ -8,14 +8,26 @@ file(GLOB_RECURSE ECS_SOURCE_FILES
 )
 add_library(ECS STATIC ${ECS_SOURCE_FILES})
 
-#----------------PerformanceTestVsEntt------------------
-project(PerformanceTestVsEntt)
-file(GLOB_RECURSE PerformanceTestVsEntt_SOURCE_FILES 
-    PerformanceTestVsEntt/Source/*.cpp
+#----------------Benchmarks------------------
+if(On) 
+project(Benchmarks)
+file(GLOB_RECURSE Benchmarks_SOURCE_FILES 
+    Benchmarks/Source/*.cpp
 )
-add_executable(PerformanceTestVsEntt ${PerformanceTestVsEntt_SOURCE_FILES})
-target_include_directories(PerformanceTestVsEntt PUBLIC ECS/Source/)
-target_link_libraries(PerformanceTestVsEntt ECS)
+add_executable(Benchmarks ${Benchmarks_SOURCE_FILES})
+target_include_directories(Benchmarks PUBLIC ECS/Source/)
+target_link_libraries(Benchmarks ECS)
+
+include(FetchContent)
+FetchContent_Declare(
+    flecs
+    GIT_REPOSITORY https://github.com/SanderMertens/flecs.git
+    GIT_TAG v4.1.4   # ← strongly recommended to pin a version
+)
+FetchContent_MakeAvailable(flecs)
+target_include_directories(Benchmarks PRIVATE ${flecs_SOURCE_DIR}/include)
+target_link_libraries(Benchmarks flecs_static)
+endif()
 
 #----------------Sample------------------
 project(Sample)
