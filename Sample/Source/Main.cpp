@@ -1,18 +1,3 @@
-# Mini ECS
-
-## This is not production-ready yet
-
-A simple ECS library made quickly to test whether I can build something smaller and faster than the EnTT ECS library.
-
-## How to Compile
-
-cmake -S . -B build
-
-cmake --build build --config Release
-
-## Code Example
-
-```
 #include <ECS.h>
 
 struct Position {
@@ -41,4 +26,3 @@ int main(){
 
     return 0;
 }
-```

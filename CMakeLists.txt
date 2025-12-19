@@ -17,6 +17,15 @@ add_executable(PerformanceTestVsEntt ${PerformanceTestVsEntt_SOURCE_FILES})
 target_include_directories(PerformanceTestVsEntt PUBLIC ECS/Source/)
 target_link_libraries(PerformanceTestVsEntt ECS)
 
+#----------------Sample------------------
+project(Sample)
+file(GLOB_RECURSE Sample_SOURCE_FILES 
+    Sample/Source/*.cpp
+)
+add_executable(Sample ${Sample_SOURCE_FILES})
+target_include_directories(Sample PUBLIC ECS/Source/)
+target_link_libraries(Sample ECS)
+
 #----------------Tests------------------
 if(On) 
 enable_testing()
