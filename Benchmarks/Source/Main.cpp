@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdio>
+#include <random>
 
 #include "ECS.h"
 #include "entt/entt.hpp"
@@ -22,15 +23,21 @@ struct Timer {
 
 struct Position { float x, y, z; };
 struct Velocity { float x, y, z; };
-
 struct Position2 { float x, y, z; };
 struct Velocity2 { float x, y, z; };
-
 struct Position3 { float x, y, z; };
 struct Velocity3 { float x, y, z; };
-
 struct Position4 { float x, y, z; };
 struct Velocity4 { float x, y, z; };
+
+struct Position5 { float x, y, z; };
+struct Velocity5 { float x, y, z; };
+struct Position6 { float x, y, z; };
+struct Velocity6 { float x, y, z; };
+struct Position7 { float x, y, z; };
+struct Velocity7 { float x, y, z; };
+struct Position8 { float x, y, z; };
+struct Velocity8 { float x, y, z; };
 
 constexpr uint32_t N = 1'000'000;
 
@@ -229,6 +236,83 @@ void BenchmarkECS_DestroyEntityWithComponets(){
 
     double ms = t.elapsed_ms();
     std::printf("[ECS] %s: %.3f ms\n", destroyEntityWithComponentLabel, ms);
+}
+
+void BenchmarkECS_ArchetypeExplosion(){
+    World world;
+
+    Timer t;
+
+    for(uint32_t i = 0; i < N; ++i){
+        Entity e = world.CreateEntity();
+
+        if(i & (1 <<  0)) world.AddComponent(e, Position{1,2,3});
+        if(i & (1 <<  1)) world.AddComponent(e, Velocity{4,5,6});
+        if(i & (1 <<  2)) world.AddComponent(e, Position2{1,2,3});
+        if(i & (1 <<  3)) world.AddComponent(e, Velocity2{4,5,6});
+        if(i & (1 <<  4)) world.AddComponent(e, Position3{1,2,3});
+        if(i & (1 <<  5)) world.AddComponent(e, Velocity3{4,5,6});
+        if(i & (1 <<  6)) world.AddComponent(e, Position4{1,2,3});
+        if(i & (1 <<  7)) world.AddComponent(e, Velocity4{4,5,6});
+
+        if(i & (1 <<  8)) world.AddComponent(e, Position5{1,2,3});
+        if(i & (1 <<  9)) world.AddComponent(e, Velocity5{4,5,6});
+        if(i & (1 << 10)) world.AddComponent(e, Position6{1,2,3});
+        if(i & (1 << 11)) world.AddComponent(e, Velocity6{4,5,6});
+        if(i & (1 << 12)) world.AddComponent(e, Position7{1,2,3});
+        if(i & (1 << 13)) world.AddComponent(e, Velocity7{4,5,6});
+        if(i & (1 << 14)) world.AddComponent(e, Position8{1,2,3});
+        if(i & (1 << 15)) world.AddComponent(e, Velocity8{4,5,6});
+    }
+
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[ECS] [ArchetypeExplosion] %u entities, archetypes = %zu, time = %.3f ms\n",
+        N,
+        world.archetypes.size(),
+        ms
+    );
+}
+
+void BenchmarkECS_ArchetypeExplosion_Batch(){
+    World world;
+
+    Timer t;
+
+    for(uint32_t i = 0; i < N; ++i){
+        Entity e = world.CreateEntity();
+        ComponentBatch batch;
+
+        if(i & (1 <<  0)) batch.Add(Position{1,2,3});
+        if(i & (1 <<  1)) batch.Add(Velocity{4,5,6});
+        if(i & (1 <<  2)) batch.Add(Position2{1,2,3});
+        if(i & (1 <<  3)) batch.Add(Velocity2{4,5,6});
+        if(i & (1 <<  4)) batch.Add(Position3{1,2,3});
+        if(i & (1 <<  5)) batch.Add(Velocity3{4,5,6});
+        if(i & (1 <<  6)) batch.Add(Position4{1,2,3});
+        if(i & (1 <<  7)) batch.Add(Velocity4{4,5,6});
+
+        if(i & (1 <<  8)) batch.Add(Position5{1,2,3});
+        if(i & (1 <<  9)) batch.Add(Velocity5{4,5,6});
+        if(i & (1 << 10)) batch.Add(Position6{1,2,3});
+        if(i & (1 << 11)) batch.Add(Velocity6{4,5,6});
+        if(i & (1 << 12)) batch.Add(Position7{1,2,3});
+        if(i & (1 << 13)) batch.Add(Velocity7{4,5,6});
+        if(i & (1 << 14)) batch.Add(Position8{1,2,3});
+        if(i & (1 << 15)) batch.Add(Velocity8{4,5,6});
+
+        world.AddBatch(e, batch);
+    }
+
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[ECS] [Batch] [ArchetypeExplosion] %u entities, archetypes = %zu, time = %.3f ms\n",
+        N,
+        world.archetypes.size(),
+        ms
+    );
 }
 
 /////////////////////////////////
@@ -591,6 +675,44 @@ void BenchmarkFlecs_DestroyEntityWithComponents(){
     std::printf("[Flecs] %s: %.3f ms\n", destroyEntityWithComponentLabel, ms);
 }
 
+void BenchmarkFlecs_ArchetypeExplosion(){
+    flecs::world world;
+
+    Timer t;
+
+    for(uint32_t i = 0; i < N; ++i){
+        flecs::entity e = world.entity();
+
+        if(i & (1 <<  0)) e.add<Position>();
+        if(i & (1 <<  1)) e.add<Velocity>();
+        if(i & (1 <<  2)) e.add<Position2>();
+        if(i & (1 <<  3)) e.add<Velocity2>();
+        if(i & (1 <<  4)) e.add<Position3>();
+        if(i & (1 <<  5)) e.add<Velocity3>();
+        if(i & (1 <<  6)) e.add<Position4>();
+        if(i & (1 <<  7)) e.add<Velocity4>();
+
+        if(i & (1 <<  8)) e.add<Position5>();
+        if(i & (1 <<  9)) e.add<Velocity5>();
+        if(i & (1 << 10)) e.add<Position6>();
+        if(i & (1 << 11)) e.add<Velocity6>();
+        if(i & (1 << 12)) e.add<Position7>();
+        if(i & (1 << 13)) e.add<Velocity7>();
+        if(i & (1 << 14)) e.add<Position7>();
+        if(i & (1 << 15)) e.add<Velocity7>();
+    }
+
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[Flecs] [ArchetypeExplosion] %u entities, archetypes = %s, time = %.3f ms\n",
+        N,
+        "X",
+        ms
+    );
+}
+
+
 int main(){
     RegisterComponent<Position>();
     RegisterComponent<Velocity>();
@@ -600,6 +722,15 @@ int main(){
     RegisterComponent<Velocity3>();
     RegisterComponent<Position4>();
     RegisterComponent<Velocity4>();
+
+    RegisterComponent<Position5>();
+    RegisterComponent<Velocity5>();
+    RegisterComponent<Position6>();
+    RegisterComponent<Velocity6>();
+    RegisterComponent<Position7>();
+    RegisterComponent<Velocity7>();
+    RegisterComponent<Position8>();
+    RegisterComponent<Velocity8>();
 
     //All test are using equivalent entt and flecs function comparated to my library
     //The goal is test the speed of the individual entt and flecs functions and my equivalent functions
@@ -629,6 +760,11 @@ int main(){
     BenchmarkECS_DestroyEntityWithComponets();
     BenchmarkEnTT_DestroyEntityWithComponets();
     BenchmarkFlecs_DestroyEntityWithComponents();
+    std::printf("\n");
+
+    BenchmarkECS_ArchetypeExplosion();
+    BenchmarkECS_ArchetypeExplosion_Batch();
+    BenchmarkFlecs_ArchetypeExplosion();
     std::printf("\n");
 
     return 0;

@@ -6,6 +6,7 @@
 #include <memory>
 #include <functional>
 #include <cassert>
+#include <algorithm>
 
 #define HeadOnly
 //#define UseDLLSafe
@@ -119,6 +120,16 @@ struct Signature{
         return sig;
     }
 
+    size_t Hash() const {
+        size_t h = 1469598103934665603ull; // FNV-1a offset
+        for(size_t i = 0; i < NumChunks; ++i){
+            h ^= bits[i];
+            h *= 1099511628211ull;
+        }
+        return h;
+    }
+
+
 };
 
 ///////////////////////////////
@@ -128,6 +139,8 @@ struct IComponentArray {
     virtual size_t Size() = 0;
     virtual void Remove(size_t index) = 0;
     virtual void CopyElementTo(IComponentArray* dst, size_t srcIndex) = 0;
+
+    virtual void EmplaceFromRaw(void* src) = 0;
 };
 
 template<typename T>
@@ -146,6 +159,10 @@ struct ComponentArray : IComponentArray {
     void CopyElementTo(IComponentArray* dst, size_t srcIndex) override {
         auto* d = static_cast<ComponentArray<T>*>(dst);
         d->data.push_back(data[srcIndex]);
+    }
+
+    void EmplaceFromRaw(void* src) override {
+        data.push_back(std::move(*static_cast<T*>(src)));
     }
 };
 
@@ -339,7 +356,7 @@ template<typename... Ts>
 constexpr Exclude<Ts...> exclude{};
 
 template<typename... Cs>
-struct ViewWithExclude {
+struct ViewWithExclude{
     World* world;
     Signature include;
     Signature exclude;
@@ -394,6 +411,40 @@ struct ViewWithExclude {
     }
 };
 
+struct ComponentBatch{
+    struct Entry{
+        ComponentID id;
+        void* data;
+        void (*destroy)(void*);
+    };
+
+    Signature sig;
+    std::vector<Entry> entries;
+
+    template<typename T>
+    void Add(T&& value){
+        ComponentID id = GetComponentID<T>();
+        sig.set(id);
+
+        T* ptr = new T(std::forward<T>(value));
+
+        entries.push_back({
+            id,
+            ptr,
+            [](void* p) { delete static_cast<T*>(p); }
+        });
+    }
+
+    void Clear(){
+        for(auto& e : entries){
+            e.destroy(e.data);
+        }
+
+        entries.clear();
+        sig = {};
+    }
+};
+
 struct World {
     Entity nextEntity = 0;
     std::vector<EntityLocation> locations;
@@ -441,7 +492,82 @@ struct World {
         return locations[e].archetype != nullptr;
     }
 
-    Archetype* GetOrCreateArchetype(const Signature& signature){
+    //////////////////
+    struct ArchetypeSlot {
+        Signature sig;
+        Archetype* archetype = nullptr;
+    };
+
+    std::vector<ArchetypeSlot> archetypeTable;
+    size_t archetypeMask = 0;
+    size_t archetypeCount = 0;
+
+    void InitArchetypeTable(size_t initialCapacity = 64){
+        // must be power of two
+        size_t cap = 1;
+        while(cap < initialCapacity) cap <<= 1;
+
+        archetypeTable.clear();
+        archetypeTable.resize(cap);
+        archetypeMask = cap - 1;
+        archetypeCount = 0;
+    }
+
+    void RehashArchetypes(size_t newCapacity) {
+        std::vector<ArchetypeSlot> old = std::move(archetypeTable);
+
+        InitArchetypeTable(newCapacity);
+
+        for(auto& slot : old){
+            if(!slot.archetype) continue;
+
+            size_t h = slot.sig.Hash() & archetypeMask;
+            while(archetypeTable[h].archetype)
+                h = (h + 1) & archetypeMask;
+
+            archetypeTable[h] = slot;
+            archetypeCount++;
+        }
+    }
+
+    //INFO: Not full tested yet
+    Archetype* GetOrCreateArchetype(const Signature& sig){
+        // Lazy init
+        if(archetypeTable.empty()){
+            InitArchetypeTable(64);
+        }
+
+        // Resize if load factor > 70%
+        if((archetypeCount + 1) * 10 >= archetypeTable.size() * 7){
+            RehashArchetypes(archetypeTable.size() * 2);
+        }
+
+        size_t h = sig.Hash() & archetypeMask;
+
+        while(true){
+            ArchetypeSlot& slot = archetypeTable[h];
+
+            if(!slot.archetype){
+                // Create new archetype
+                archetypes.push_back(std::make_unique<Archetype>(sig));
+
+                slot.sig = sig;
+                slot.archetype = archetypes.back().get();
+                archetypeCount++;
+
+                return slot.archetype;
+            }
+
+            if(slot.sig == sig){
+                return slot.archetype;
+            }
+
+            h = (h + 1) & archetypeMask;
+        }
+    }
+    ///////////////////
+
+    Archetype* GetOrCreateArchetype2(const Signature& signature){
         //TODO: update this with std::unordered_map<Signature, Archetype*, SignatureHash>
         for(auto& a : archetypes){
             if(a->signature == signature) return a.get();
@@ -449,6 +575,45 @@ struct World {
 
         archetypes.push_back(std::make_unique<Archetype>(signature));
         return archetypes.back().get();
+    }
+
+    //INFO: Not full tested yet
+    void AddBatch(Entity e, ComponentBatch& batch){
+        /*std::sort(
+            batch.entries.begin(),
+            batch.entries.end(),
+            [](auto& a, auto& b){ return a.id < b.id; }
+        );*/
+
+        EntityLocation& loc = locations[e];
+
+        Signature oldSig;
+        if(loc.archetype) oldSig = loc.archetype->signature;
+
+        Signature newSig = oldSig;
+        for(auto& ent : batch.entries){
+            newSig.set(ent.id);
+        }
+
+        Archetype* dst = GetOrCreateArchetype(newSig);
+        uint32_t newRow = dst->Size();
+
+        if(loc.archetype){
+            loc.archetype->CopyRowTo(*dst, loc.index);
+            loc.archetype->Remove(loc.index, locations);
+        }
+
+        for(auto& ent : batch.entries){
+            uint16_t idx = dst->mapToComponents[ent.id];
+            assert(idx != Invalid);
+
+            dst->components[idx]->EmplaceFromRaw(ent.data);
+        }
+
+        dst->entities.push_back(e);
+        loc = { newRow, dst };
+
+        batch.Clear();
     }
 
     template<typename T>
