@@ -128,8 +128,6 @@ struct Signature{
         }
         return h;
     }
-
-
 };
 
 ///////////////////////////////
@@ -139,8 +137,8 @@ struct IComponentArray {
     virtual size_t Size() = 0;
     virtual void Remove(size_t index) = 0;
     virtual void CopyElementTo(IComponentArray* dst, size_t srcIndex) = 0;
-
     virtual void EmplaceFromRaw(void* src) = 0;
+    virtual ComponentID GetID() const = 0; 
 };
 
 template<typename T>
@@ -157,12 +155,17 @@ struct ComponentArray : IComponentArray {
     }
 
     void CopyElementTo(IComponentArray* dst, size_t srcIndex) override {
+        assert(dst->GetID() == GetComponentID<T>() && "Invalid component cast");
         auto* d = static_cast<ComponentArray<T>*>(dst);
         d->data.push_back(data[srcIndex]);
     }
 
     void EmplaceFromRaw(void* src) override {
         data.push_back(std::move(*static_cast<T*>(src)));
+    }
+
+    ComponentID GetID() const override {
+        return GetComponentID<T>();
     }
 };
 
@@ -199,8 +202,6 @@ ComponentID RegisterComponent(){
 struct Archetype;
 
 struct EntityLocation{
-    //Archetype* archetype = nullptr;
-    //size_t index = 0;
     uint32_t index;
     Archetype* archetype = nullptr;
 };
@@ -237,14 +238,15 @@ struct Archetype{
         ComponentID id = GetComponentID<T>();
         uint16_t index = mapToComponents[id];
         assert(index != Invalid && "Component not in archetype");
+        
+        assert(components[index]->GetID() == GetComponentID<T>() && "Invalid component cast");
         return static_cast<ComponentArray<T>*>(components[index]);
     }
 
     template<typename T>
     ComponentArray<T>* GetFast(){
-        return static_cast<ComponentArray<T>*>(
-            components[mapToComponents[GetComponentID<T>()]]
-        );
+        assert(components[mapToComponents[GetComponentID<T>()]]->GetID() == GetComponentID<T>() && "Invalid component cast");
+        return static_cast<ComponentArray<T>*>(components[mapToComponents[GetComponentID<T>()]]);
     }
 
     bool Has(ComponentID id) const {
@@ -522,8 +524,9 @@ struct World {
             if(!slot.archetype) continue;
 
             size_t h = slot.sig.Hash() & archetypeMask;
-            while(archetypeTable[h].archetype)
+            while(archetypeTable[h].archetype){
                 h = (h + 1) & archetypeMask;
+            }
 
             archetypeTable[h] = slot;
             archetypeCount++;
@@ -606,6 +609,7 @@ struct World {
         for(auto& ent : batch.entries){
             uint16_t idx = dst->mapToComponents[ent.id];
             assert(idx != Invalid);
+            assert(dst->components[idx]->GetID() == ent.id && "Invalid component cast");
 
             dst->components[idx]->EmplaceFromRaw(ent.data);
         }
