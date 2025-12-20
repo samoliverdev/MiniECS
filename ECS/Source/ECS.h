@@ -566,7 +566,7 @@ struct World {
         }
     }
     ///////////////////
-
+    
     Archetype* GetOrCreateArchetype2(const Signature& signature){
         //TODO: update this with std::unordered_map<Signature, Archetype*, SignatureHash>
         for(auto& a : archetypes){
