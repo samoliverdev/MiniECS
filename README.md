@@ -44,27 +44,28 @@ int main(){
 
 ## Benchmarks
 
-[ECS] Update Systems: 11.171 ms \
-[EnTT] [View] Update Systems: 33.173 ms \
-[EnTT] [Group] Update Systems: 145.170 ms \
-[Flecs] Update Systems: 7.970 ms
+[ECS] Update Systems: 12.459 ms \
+[EnTT] [View] Update Systems: 34.145 ms \
+[EnTT] [Group] Update Systems: 147.410 ms \
+[Flecs] Update Systems: 8.600 ms \
 
-[ECS] Single Get Component: 44.943 ms \
-[EnTT] Single Get Component: 110.646 ms \
-[Flecs] Single Get Component: 160.516 ms
+[ECS] Single Get Component: 47.751 ms \
+[EnTT] Single Get Component: 107.441 ms \ 
+[Flecs] Single Get Component: 172.845 ms
 
-[ECS] [Single] Create Entity With Componets: 1246.050 ms \
-[ECS] [Batched] Create Entity With Componets: 261.101 ms \
-[EnTT] Create Entity With Componets: 315.863 ms \
-[Flecs] Create Entity With Componets: 1583.299 ms \
+[ECS] [Single] Create Entity With Componets: 1305.615 ms \ 
+[ECS] [Batched] Create Entity With Componets: 271.792 ms \
+[EnTT] Create Entity With Componets: 357.566 ms \
+[Flecs] Create Entity With Componets: 1590.492 ms
 
-[ECS] Destroy Entity With Componets: 46.252 ms \
-[EnTT] Destroy Entity With Componets: 397.077 ms \
-[Flecs] Destroy Entity With Componets: 76.986 ms
+[ECS] Destroy Entity With Componets: 41.106 ms \
+[EnTT] Destroy Entity With Componets: 368.698 ms \
+[Flecs] Destroy Entity With Componets: 76.064 ms
 
-[ECS] [ArchetypeExplosion] 1000000 entities, archetypes = 65535, time = 4629.157 ms \
-[ECS] [Batch] [ArchetypeExplosion] 1000000 entities, archetypes = 65536, time = 2549.546 ms \
-[Flecs] [ArchetypeExplosion] 1000000 entities, archetypes = X, time = 2642.299 ms
+[ECS] [ArchetypeExplosion] 1000000 entities, archetypes = 65535, time = 5022.878 ms \
+[ECS] [Batch] [ArchetypeExplosion] 1000000 entities, archetypes = 65536, time = 2744.306 ms \
+[Flecs] [Add] [ArchetypeExplosion] 1000000 entities, archetypes = X, time = 2793.100 ms \
+[Flecs] [Set] [ArchetypeExplosion] 1000000 entities, archetypes = X, time = 4063.011 ms
 
 ### Benchmarks Notes
 
