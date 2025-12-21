@@ -47,13 +47,13 @@ int main(){
 [ECS] Update Systems: 12.459 ms \
 [EnTT] [View] Update Systems: 34.145 ms \
 [EnTT] [Group] Update Systems: 147.410 ms \
-[Flecs] Update Systems: 8.600 ms \
+[Flecs] Update Systems: 8.600 ms 
 
 [ECS] Single Get Component: 47.751 ms \
-[EnTT] Single Get Component: 107.441 ms \ 
+[EnTT] Single Get Component: 107.441 ms \
 [Flecs] Single Get Component: 172.845 ms
 
-[ECS] [Single] Create Entity With Componets: 1305.615 ms \ 
+[ECS] [Single] Create Entity With Componets: 1305.615 ms \
 [ECS] [Batched] Create Entity With Componets: 271.792 ms \
 [EnTT] Create Entity With Componets: 357.566 ms \
 [Flecs] Create Entity With Componets: 1590.492 ms
