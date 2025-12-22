@@ -12,6 +12,15 @@ file(GLOB_RECURSE ECS_SOURCE_FILES
 )
 add_library(ECS STATIC ${ECS_SOURCE_FILES})
 
+include(FetchContent)
+FetchContent_Declare(
+    taskflow
+    GIT_REPOSITORY https://github.com/taskflow/taskflow.git
+    GIT_TAG v3.7.0 
+)
+FetchContent_MakeAvailable(taskflow)
+target_include_directories(ECS PRIVATE ${taskflow_SOURCE_DIR}/)
+
 #----------------Benchmarks------------------
 if(On) 
 project(Benchmarks)
@@ -31,6 +40,14 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(flecs)
 target_include_directories(Benchmarks PRIVATE ${flecs_SOURCE_DIR}/include)
 target_link_libraries(Benchmarks flecs_static)
+
+FetchContent_Declare(
+    taskflow
+    GIT_REPOSITORY https://github.com/taskflow/taskflow.git
+)
+FetchContent_MakeAvailable(taskflow)
+target_include_directories(Benchmarks PRIVATE ${taskflow_SOURCE_DIR}/)
+
 endif()
 
 #----------------Sample------------------

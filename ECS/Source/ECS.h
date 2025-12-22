@@ -7,6 +7,9 @@
 #include <functional>
 #include <cassert>
 #include <algorithm>
+#include <thread>
+#include <taskflow/taskflow.hpp>
+#include <taskflow/algorithm/for_each.hpp>
 
 #define HeadOnly
 //#define UseDLLSafe
@@ -211,11 +214,15 @@ struct EntityLocation{
 struct Archetype{
     Signature signature;
     std::array<uint16_t, MaxComponents> mapToComponents;
+    //std::vector<uint16_t> mapToComponents;
     std::vector<ComponentID> componentIDs;
     std::vector<IComponentArray*> components; // size = number of components in archetype
     std::vector<Entity> entities;
 
     Archetype(const Signature& sig):signature(sig){
+        //mapToComponents.resize(MaxComponents);
+        //std::fill(mapToComponents.begin(), mapToComponents.end(), Invalid);
+
         mapToComponents.fill(Invalid);
 
         for(ComponentID i = 0; i < MaxComponents; ++i){
@@ -298,10 +305,22 @@ struct Archetype{
 
 struct World;
 
+inline uint32_t GetWorkerCount(uint32_t max = UINT32_MAX){
+    uint32_t n = std::thread::hardware_concurrency();
+    return n ? std::min(n, max) : 1;
+}
+
 template<typename... Cs>
 struct View {
     World* world;
     Signature required;
+    std::vector<Archetype*> matched; 
+
+    struct CachedArch {
+        size_t count;
+        std::tuple<Cs*...> ptrs;
+    };
+    std::vector<CachedArch> cached;
 
     View(World* w):world(w){
         (required.set(GetComponentID<Cs>()), ...);
@@ -328,6 +347,110 @@ struct View {
     }
 
     template<typename Func>
+    void Each2(Func&& func){
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(required)) continue;
+
+            auto arrays = std::tuple{ arch.Get<Cs>()->data.data()... };
+
+            for(size_t i = 0; i < arch.Size(); ++i){
+                std::apply(
+                    [&](auto*... arr) {
+                        func(arr[i]...);
+                    },
+                    arrays
+                );
+            }
+        }
+    }
+
+    template<typename Func, typename... Ts>
+    inline void ForEachPacked(
+        size_t begin,
+        size_t end,
+        Func&& func,
+        Ts*... ptrs
+    ){
+        for(size_t i = begin; i < end; ++i){
+            func(ptrs[i]...);
+        }
+    }
+
+    template<typename Func>
+    void Each3(Func&& func){
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(required)) continue;
+
+            //auto arrays = std::tuple{ arch.Get<Cs>()->data.data()... };
+
+            ForEachPacked(
+                0, arch.Size(),
+                func,
+                arch.GetFast<Cs>()->data.data()...
+            );
+        }
+    }
+
+    void Refresh(){
+        matched.clear();
+        for(auto& a : world->archetypes){
+            if(a->signature.Contains(required)){
+                matched.push_back(a.get());
+            }
+        }
+    }
+
+    template<typename Func>
+    void Each4(Func&& func){
+        for(auto* arch: matched){
+            ForEachPacked(
+                0, arch->Size(),
+                func,
+                arch->GetFast<Cs>()->data.data()...
+            );
+        }
+    }
+
+    void Refresh2(){
+        cached.clear();
+        cached.reserve(world->archetypes.size());
+
+        for(auto& a : world->archetypes){
+            if(!a->signature.Contains(required))
+                continue;
+
+            CachedArch c;
+            c.count = a->Size();
+            c.ptrs  = std::tuple<Cs*...>{
+                a->GetFast<Cs>()->data.data()...
+            };
+
+            cached.emplace_back(c);
+        }
+    }
+
+    template<typename Func>
+    void Each5(Func&& func){
+        for(auto& c : cached){
+            std::apply(
+                [&](auto*... ptrs){
+                    ForEachPacked(
+                        0,
+                        c.count,
+                        func,
+                        ptrs...
+                    );
+                },
+                c.ptrs
+            );
+        }
+    }
+
+    template<typename Func>
     void EachWithEntity(Func&& func) {
         for(auto& archPtr : world->archetypes){
             Archetype& arch = *archPtr;
@@ -347,6 +470,291 @@ struct View {
             }
         }
     }
+
+    template<typename Func>
+    void EachParallel(Func&& func){
+        const uint32_t hw = GetWorkerCount();
+
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(required))
+                continue;
+
+            const size_t count = arch.Size();
+            if(count == 0)
+                continue;
+
+            auto arrays = std::tuple{ arch.Get<Cs>()... };
+
+            const uint32_t workers = std::min<uint32_t>(hw, (uint32_t)count);
+            const size_t chunkSize = (count + workers - 1) / workers;
+
+            std::vector<std::thread> threads;
+            threads.reserve(workers);
+
+            for(uint32_t t = 0; t < workers; ++t){
+                const size_t begin = t * chunkSize;
+                if(begin >= count) break;
+
+                const size_t end = std::min(begin + chunkSize, count);
+
+                threads.emplace_back(
+                    [&, begin, end]() {
+                        for(size_t i = begin; i < end; ++i){
+                            std::apply(
+                                [&](auto*... arr){
+                                    func(arr->data[i]...);
+                                },
+                                arrays
+                            );
+                        }
+                    }
+                );
+            }
+
+            for(auto& th : threads)
+                th.join();
+        }
+    }
+
+    template<typename Func>
+    void EachParallel(tf::Executor& executor, Func&& func){
+        tf::Taskflow tf;
+        const uint32_t hw = executor.num_workers();
+
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(required)) continue;
+
+            const size_t count = arch.Size();
+            if(count == 0) continue;
+
+            auto arrays = std::tuple{ arch.Get<Cs>()... };
+
+            const uint32_t workers = std::min<uint32_t>(hw, (uint32_t)count);
+            const size_t chunkSize = (count + workers - 1) / workers;
+
+            std::vector<std::thread> threads;
+            threads.reserve(workers);
+
+            for(uint32_t t = 0; t < workers; ++t){
+                const size_t begin = t * chunkSize;
+                if(begin >= count) break;
+
+                const size_t end = std::min(begin + chunkSize, count);
+
+                tf.emplace(
+                    [&, begin, end]() {
+                        for(size_t i = begin; i < end; ++i){
+                            std::apply(
+                                [&](auto*... arr){
+                                    func(arr->data[i]...);
+                                },
+                                arrays
+                            );
+                        }
+                    }
+                );
+            }
+        }
+        executor.run(tf).wait();
+    }
+
+    template<typename Func>
+    void EachParallel2(tf::Executor& executor, Func&& func){
+        tf::Taskflow tf;
+
+        constexpr size_t CHUNK_SIZE = 512;
+
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(required)) continue;
+
+            const size_t count = arch.Size();
+            if(count == 0) continue;
+
+            auto arrays = std::tuple{ arch.Get<Cs>()... };
+
+            // Small archetypes: run single-threaded
+            if(count <= CHUNK_SIZE){
+                for(size_t i = 0; i < count; ++i) {
+                    std::apply(
+                        [&](auto*... arr) {
+                            func(arr->data[i]...);
+                        },
+                        arrays
+                    );
+                }
+                continue;
+            }
+
+            const size_t taskCount = (count + CHUNK_SIZE - 1) / CHUNK_SIZE;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK_SIZE;
+                const size_t end   = std::min(begin + CHUNK_SIZE, count);
+
+                tf.emplace([&, begin, end](){
+                    for(size_t i = begin; i < end; ++i){
+                        std::apply(
+                            [&](auto*... arr) {
+                                func(arr->data[i]...);
+                            },
+                            arrays
+                        );
+                    }
+                });
+            }
+        }
+
+        executor.run(tf).wait();
+    }
+
+    template<typename Func>
+    void EachParallel3(tf::Executor& executor, Func&& func){
+        tf::Taskflow tf;
+
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(required))
+                continue;
+
+            const size_t count = arch.Size();
+            if(count == 0)
+                continue;
+
+            // Resolve raw pointers ONCE (same as fast iterator)
+            auto ptrs = std::tuple{
+                arch.GetFast<Cs>()->data.data()...
+            };
+
+            constexpr size_t CHUNK = 512;
+            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK;
+                const size_t end   = std::min(begin + CHUNK, count);
+
+                tf.emplace([&, begin, end, ptrs]() mutable {
+                    for(size_t i = begin; i < end; ++i){
+                        // tight hot loop
+                        std::apply(
+                            [&](auto*... p){
+                                func(p[i]...);
+                            },
+                            ptrs
+                        );
+                    }
+                });
+            }
+        }
+
+        executor.run(tf).wait();
+    }
+
+    template<typename Func>
+    void EachParallel4(tf::Executor& executor, Func&& func){
+        tf::Taskflow tf;
+
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(required)) continue;
+
+            const size_t count = arch.Size();
+            if(count == 0) continue;
+
+            // Resolve raw pointers ONCE (same as fast iterator)
+            /*auto ptrs = std::tuple{
+                arch.GetFast<Cs>()->data.data()...
+            };*/
+
+            constexpr size_t CHUNK = 512;
+            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK;
+                const size_t end   = std::min(begin + CHUNK, count);
+
+                tf.emplace([&, begin, end]() mutable {
+                    ForEachPacked(
+                        begin, end,
+                        func,
+                        arch.GetFast<Cs>()->data.data()...
+                    );
+                });
+            }
+        }
+
+        executor.run(tf).wait();
+    }
+
+    struct Iterator{
+        View* view; 
+        size_t archIndex;
+        size_t index;
+        size_t count;
+
+        std::tuple<Cs*...> ptrs;
+
+        void SkipInvalid(){
+            auto& archetypes = view->world->archetypes;
+
+            while(archIndex < archetypes.size()){
+                Archetype& arch = *archetypes[archIndex];
+
+                if(arch.signature.Contains(view->required) && arch.Size() > 0){
+                    count = arch.Size();
+                    ptrs = std::tuple{
+                        arch.GetFast<Cs>()->data.data()...
+                    };
+                    return;
+                }
+
+                ++archIndex;
+            }
+
+            count = 0;
+        }
+
+        Iterator(View* v, size_t a, size_t i):view(v),archIndex(a),index(i),count(0){
+            SkipInvalid();
+        }
+
+        inline auto operator*() const noexcept {
+            return std::apply(
+                [&](auto*... p) {
+                    return std::tuple<Cs&...>(p[index]...);
+                },
+                ptrs
+            );
+        }
+
+        Iterator& operator++(){
+            ++index;
+            if(index >= count){
+                ++archIndex;
+                index = 0;
+                SkipInvalid();
+            }
+            return *this;
+        }
+
+        bool operator==(const Iterator& other) const {
+            return archIndex == other.archIndex && index == other.index;
+        }
+
+        bool operator!=(const Iterator& other) const {
+            return !(*this == other);
+        }
+    };
+
+    Iterator begin(){ return Iterator{ this, 0, 0 }; }
+    Iterator end(){ return Iterator{ this, world->archetypes.size(), 0 }; }
 };
 
 ////////////////////////////////
