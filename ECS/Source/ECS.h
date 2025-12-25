@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <bitset>
 #include <vector>
+#include <set>
 #include <array>
 #include <memory>
 #include <functional>
@@ -310,6 +311,34 @@ inline uint32_t GetWorkerCount(uint32_t max = UINT32_MAX){
     return n ? std::min(n, max) : 1;
 }
 
+template<typename Func, typename... Ts>
+inline void ForEachPacked(
+    size_t begin,
+    size_t end,
+    Func&& func,
+    Ts*... ptrs
+){
+    for(size_t i = begin; i < end; ++i){
+        func(ptrs[i]...);
+    }
+}
+
+template<typename Func, typename... Ts>
+inline void ForEachPacked(
+    size_t begin,
+    size_t end,
+    Func&& func,
+    Entity* entities,
+    Ts*... ptrs
+){
+    for(size_t i = begin; i < end; ++i){
+        func(entities[i], ptrs[i]...);
+    }
+}
+
+template<typename F, typename... Args>
+constexpr bool AcceptsEntity = std::is_invocable_v<F, Entity, Args...>;
+
 template<typename... Cs>
 struct View {
     World* world;
@@ -324,6 +353,32 @@ struct View {
 
     View(World* w):world(w){
         (required.set(GetComponentID<Cs>()), ...);
+    }
+
+
+    template<typename Func>
+    void NewEach(Func&& func){
+        for(auto& archPtr : world->archetypes){
+            Archetype& arch = *archPtr;
+
+            if(!arch.signature.Contains(required)) continue;
+
+            if constexpr (AcceptsEntity<Func, Cs&...>){
+                Entity* entities = arch.entities.data();
+                ForEachPacked(
+                    0, arch.Size(),
+                    func,
+                    entities,
+                    arch.GetFast<Cs>()->data.data()...
+                );
+            } else {
+                ForEachPacked(
+                    0, arch.Size(),
+                    func,
+                    arch.GetFast<Cs>()->data.data()...
+                );
+            }
+        }
     }
 
     template<typename Func>
@@ -366,7 +421,7 @@ struct View {
         }
     }
 
-    template<typename Func, typename... Ts>
+    /*template<typename Func, typename... Ts>
     inline void ForEachPacked(
         size_t begin,
         size_t end,
@@ -376,7 +431,7 @@ struct View {
         for(size_t i = begin; i < end; ++i){
             func(ptrs[i]...);
         }
-    }
+    }*/
 
     template<typename Func>
     void Each3(Func&& func){
@@ -668,11 +723,6 @@ struct View {
             const size_t count = arch.Size();
             if(count == 0) continue;
 
-            // Resolve raw pointers ONCE (same as fast iterator)
-            /*auto ptrs = std::tuple{
-                arch.GetFast<Cs>()->data.data()...
-            };*/
-
             constexpr size_t CHUNK = 512;
             const size_t taskCount = (count + CHUNK - 1) / CHUNK;
 
@@ -691,6 +741,130 @@ struct View {
         }
 
         executor.run(tf).wait();
+    }
+    
+    template<typename Func>
+    void EachParallel5(tf::Executor& executor, Func&& func){
+        tf::Taskflow tf;
+
+        constexpr size_t CHUNK = 512;
+
+        for(auto& c : cached){
+            const size_t count = c.count;
+            if(count == 0) continue;
+
+            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK;
+                const size_t end   = std::min(begin + CHUNK, count);
+
+                tf.emplace([c, func, begin, end](){
+                    std::apply(
+                        [&](auto*... ptrs){
+                            ForEachPacked(
+                                begin,
+                                end,
+                                func,
+                                ptrs...
+                            );
+                        },
+                        c.ptrs
+                    );
+                });
+            }
+        }
+
+        executor.run(tf).wait();
+    }
+
+    template<typename Func>
+    void EachParallel5(tf::Taskflow& tf, Func&& func){
+        constexpr size_t CHUNK = 512;
+
+        for(auto& c : cached){
+            const size_t count = c.count;
+            if(count == 0) continue;
+
+            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK;
+                const size_t end   = std::min(begin + CHUNK, count);
+
+                tf.emplace([c, func, begin, end](){
+                    std::apply(
+                        [&](auto*... ptrs){
+                            ForEachPacked(
+                                begin,
+                                end,
+                                func,
+                                ptrs...
+                            );
+                        },
+                        c.ptrs
+                    );
+                });
+            }
+        }
+    }
+
+    template<typename Func>
+    void EachParallel5_v2(tf::Taskflow& tf, Func&& func){
+        constexpr size_t CHUNK = 512;
+
+        tf.emplace([&, func](){
+        for(auto& c : cached){
+            const size_t count = c.count;
+            if(count == 0) continue;
+
+            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK;
+                const size_t end   = std::min(begin + CHUNK, count);
+                    std::apply(
+                        [&](auto*... ptrs){
+                            ForEachPacked(
+                                begin,
+                                end,
+                                func,
+                                ptrs...
+                            );
+                        },
+                        c.ptrs
+                    );
+            }
+        }
+        });
+    }
+
+    template<typename Func>
+    void EachParallel6(tf::Taskflow& tf, Func&& func){
+        for(auto& archPtr : world->archetypes){
+            Archetype* arch = archPtr.get();
+
+            if(!arch->signature.Contains(required)) continue;
+
+            const size_t count = arch->Size();
+            if(count == 0) continue;
+
+            constexpr size_t CHUNK = 512;
+            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK;
+                const size_t end   = std::min(begin + CHUNK, count);
+
+                tf.emplace([func, arch, begin, end]() mutable {
+                    ForEachPacked(
+                        begin, end,
+                        func,
+                        arch->GetFast<Cs>()->data.data()...
+                    );
+                });
+            }
+        }
     }
 
     struct Iterator{

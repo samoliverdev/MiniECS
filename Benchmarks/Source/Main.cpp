@@ -66,7 +66,7 @@ void BenchmarkECS(){
     Timer t;
     
     auto view = world.GetView<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
-    view.Each3([&](auto& p, const auto& v, auto& p2, const auto& v2, auto& p3, const auto& v3, auto& p4, const auto& v4){
+    view.NewEach([&](auto& p, const auto& v, auto& p2, const auto& v2, auto& p3, const auto& v3, auto& p4, const auto& v4){
         p.x += v.x;
         p.y += v.y;
         p.z += v.z;
@@ -115,11 +115,15 @@ void BenchmarkECS_Thread(){
     }
 
     tf::Executor executor;
+    tf::Taskflow tf;
+
+    auto view = world.GetView<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
+    view.Refresh2();
 
     Timer t;
     
-    auto view = world.GetView<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
-    view.EachParallel4(executor, [&](auto& p, const auto& v, auto& p2, const auto& v2, auto& p3, const auto& v3, auto& p4, const auto& v4){
+    //auto view = world.GetView<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
+    view.EachParallel5(tf, [&](auto& p, const auto& v, auto& p2, const auto& v2, auto& p3, const auto& v3, auto& p4, const auto& v4){
         p.x += v.x;
         p.y += v.y;
         p.z += v.z;
@@ -133,6 +137,8 @@ void BenchmarkECS_Thread(){
         p4.y += v4.y;
         p4.z += v4.z;
     });
+
+    executor.run(tf).wait();
 
     double ms = t.elapsed_ms();
     std::printf("[ECS] [Thread] %s: %.3f ms\n", updateSystemLabel, ms);
@@ -398,6 +404,185 @@ void BenchmarkECS_MultUpdateSystems(){
         world.AddBatch(e, batch);
     }
 
+    auto v1 = world.GetView<Position, Velocity>(); 
+    auto v2 = world.GetView<Position2, Velocity2>(); 
+    auto v3 = world.GetView<Position3, Velocity3>();
+    auto v4 = world.GetView<Position4, Velocity4>();
+    auto v5 = world.GetView<Position5, Velocity5>();
+    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>();
+    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>();
+    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); 
+    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); 
+    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); 
+    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); 
+    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); 
+    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); 
+    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); 
+    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>();
+
+    Timer t;
+
+    // --------------------------------------------------
+    // 1–5: small signatures (hit many archetypes)
+    {
+        v1.Each3([](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v2.Each3([](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v3.Each3([](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v4.Each3([](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v5.Each3([](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+    }
+
+    // --------------------------------------------------
+    // 6–10: medium signatures
+    {
+        v6.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v7.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v8.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v9.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v10.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+    }
+
+    // --------------------------------------------------
+    // 15: large signatures (few archetypes)
+    {
+        
+        v11.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+        });
+        v12.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+        });
+        v13.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+        });
+        v14.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4,
+            auto& p5, const auto& v5
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+            p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
+        });
+        v15.Each3([](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4,
+            auto& p5, const auto& v5,
+            auto& p6, const auto& v6
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+            p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
+            p6.x += v6.x; p6.y += v6.y; p6.z += v6.z;
+        });
+    }
+
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[ECS] [MultUpdateSystems] %u entities, archetypes = %zu, time = %.3f ms\n",
+        N,
+        world.archetypes.size(),
+        ms
+    );
+}
+
+void BenchmarkECS_MultUpdateSystems_Cached(){
+    World world;
+
+    for(uint32_t i = 0; i < N; ++i){
+        Entity e = world.CreateEntity();
+        ComponentBatch batch;
+
+        if(i & (1 <<  0)) batch.Add(Position{1,2,3});
+        if(i & (1 <<  1)) batch.Add(Velocity{4,5,6});
+        if(i & (1 <<  2)) batch.Add(Position2{1,2,3});
+        if(i & (1 <<  3)) batch.Add(Velocity2{4,5,6});
+        if(i & (1 <<  4)) batch.Add(Position3{1,2,3});
+        if(i & (1 <<  5)) batch.Add(Velocity3{4,5,6});
+        if(i & (1 <<  6)) batch.Add(Position4{1,2,3});
+        if(i & (1 <<  7)) batch.Add(Velocity4{4,5,6});
+
+        if(i & (1 <<  8)) batch.Add(Position5{1,2,3});
+        if(i & (1 <<  9)) batch.Add(Velocity5{4,5,6});
+        if(i & (1 << 10)) batch.Add(Position6{1,2,3});
+        if(i & (1 << 11)) batch.Add(Velocity6{4,5,6});
+        if(i & (1 << 12)) batch.Add(Position7{1,2,3});
+        if(i & (1 << 13)) batch.Add(Velocity7{4,5,6});
+        if(i & (1 << 14)) batch.Add(Position8{1,2,3});
+        if(i & (1 << 15)) batch.Add(Velocity8{4,5,6});
+
+        world.AddBatch(e, batch);
+    }
+
     auto v1 = world.GetView<Position, Velocity>(); v1.Refresh2();
     auto v2 = world.GetView<Position2, Velocity2>(); v2.Refresh2();
     auto v3 = world.GetView<Position3, Velocity3>(); v3.Refresh2();
@@ -542,7 +727,373 @@ void BenchmarkECS_MultUpdateSystems(){
     double ms = t.elapsed_ms();
 
     std::printf(
-        "[ECS] [MultUpdateSystems] %u entities, archetypes = %zu, time = %.3f ms\n",
+        "[ECS] [MultUpdateSystems][Cached] %u entities, archetypes = %zu, time = %.3f ms\n",
+        N,
+        world.archetypes.size(),
+        ms
+    );
+}
+
+void BenchmarkECS_MultUpdateSystems_Thread(){
+    World world;
+    tf::Executor executor;
+    tf::Taskflow tf;
+
+    for(uint32_t i = 0; i < N; ++i){
+        Entity e = world.CreateEntity();
+        ComponentBatch batch;
+
+        if(i & (1 <<  0)) batch.Add(Position{1,2,3});
+        if(i & (1 <<  1)) batch.Add(Velocity{4,5,6});
+        if(i & (1 <<  2)) batch.Add(Position2{1,2,3});
+        if(i & (1 <<  3)) batch.Add(Velocity2{4,5,6});
+        if(i & (1 <<  4)) batch.Add(Position3{1,2,3});
+        if(i & (1 <<  5)) batch.Add(Velocity3{4,5,6});
+        if(i & (1 <<  6)) batch.Add(Position4{1,2,3});
+        if(i & (1 <<  7)) batch.Add(Velocity4{4,5,6});
+
+        if(i & (1 <<  8)) batch.Add(Position5{1,2,3});
+        if(i & (1 <<  9)) batch.Add(Velocity5{4,5,6});
+        if(i & (1 << 10)) batch.Add(Position6{1,2,3});
+        if(i & (1 << 11)) batch.Add(Velocity6{4,5,6});
+        if(i & (1 << 12)) batch.Add(Position7{1,2,3});
+        if(i & (1 << 13)) batch.Add(Velocity7{4,5,6});
+        if(i & (1 << 14)) batch.Add(Position8{1,2,3});
+        if(i & (1 << 15)) batch.Add(Velocity8{4,5,6});
+
+        world.AddBatch(e, batch);
+    }
+
+    auto v1 = world.GetView<Position, Velocity>(); v1.Refresh2();
+    auto v2 = world.GetView<Position2, Velocity2>(); v2.Refresh2();
+    auto v3 = world.GetView<Position3, Velocity3>(); v3.Refresh2();
+    auto v4 = world.GetView<Position4, Velocity4>(); v4.Refresh2();
+    auto v5 = world.GetView<Position5, Velocity5>(); v5.Refresh2();
+    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>(); v6.Refresh2();
+    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>(); v7.Refresh2();
+    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); v8.Refresh2();
+    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); v9.Refresh2();
+    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); v10.Refresh2();
+    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); v11.Refresh2();
+    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v12.Refresh2();
+    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v13.Refresh2();
+    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); v14.Refresh2();
+    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>(); v15.Refresh2();
+
+    // --------------------------------------------------
+    // 1–5: small signatures (hit many archetypes)
+    {
+        v1.EachParallel5_v2(tf, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v2.EachParallel5_v2(tf, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v3.EachParallel5_v2(tf, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v4.EachParallel5_v2(tf, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v5.EachParallel5_v2(tf, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+    }
+
+    // --------------------------------------------------
+    // 6–10: medium signatures
+    {
+        v6.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v7.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v8.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v9.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v10.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+    }
+
+    // --------------------------------------------------
+    // 15: large signatures (few archetypes)
+    {
+        
+        v11.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+        });
+        v12.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+        });
+        v13.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+        });
+        v14.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4,
+            auto& p5, const auto& v5
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+            p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
+        });
+        v15.EachParallel5_v2(tf, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4,
+            auto& p5, const auto& v5,
+            auto& p6, const auto& v6
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+            p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
+            p6.x += v6.x; p6.y += v6.y; p6.z += v6.z;
+        });
+    }
+
+    Timer t;
+
+    executor.run(tf).wait();
+
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[ECS] [Thread] [MultUpdateSystems] %u entities, archetypes = %zu, time = %.3f ms\n",
+        N,
+        world.archetypes.size(),
+        ms
+    );
+}
+
+void BenchmarkECS_MultUpdateSystems_Thread_v2(){
+    World world;
+    tf::Executor executor;
+    tf::Taskflow tf;
+
+    for(uint32_t i = 0; i < N; ++i){
+        Entity e = world.CreateEntity();
+        ComponentBatch batch;
+
+        if(i & (1 <<  0)) batch.Add(Position{1,2,3});
+        if(i & (1 <<  1)) batch.Add(Velocity{4,5,6});
+        if(i & (1 <<  2)) batch.Add(Position2{1,2,3});
+        if(i & (1 <<  3)) batch.Add(Velocity2{4,5,6});
+        if(i & (1 <<  4)) batch.Add(Position3{1,2,3});
+        if(i & (1 <<  5)) batch.Add(Velocity3{4,5,6});
+        if(i & (1 <<  6)) batch.Add(Position4{1,2,3});
+        if(i & (1 <<  7)) batch.Add(Velocity4{4,5,6});
+
+        if(i & (1 <<  8)) batch.Add(Position5{1,2,3});
+        if(i & (1 <<  9)) batch.Add(Velocity5{4,5,6});
+        if(i & (1 << 10)) batch.Add(Position6{1,2,3});
+        if(i & (1 << 11)) batch.Add(Velocity6{4,5,6});
+        if(i & (1 << 12)) batch.Add(Position7{1,2,3});
+        if(i & (1 << 13)) batch.Add(Velocity7{4,5,6});
+        if(i & (1 << 14)) batch.Add(Position8{1,2,3});
+        if(i & (1 << 15)) batch.Add(Velocity8{4,5,6});
+
+        world.AddBatch(e, batch);
+    }
+
+    auto v1 = world.GetView<Position, Velocity>(); v1.Refresh2();
+    auto v2 = world.GetView<Position2, Velocity2>(); v2.Refresh2();
+    auto v3 = world.GetView<Position3, Velocity3>(); v3.Refresh2();
+    auto v4 = world.GetView<Position4, Velocity4>(); v4.Refresh2();
+    auto v5 = world.GetView<Position5, Velocity5>(); v5.Refresh2();
+    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>(); v6.Refresh2();
+    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>(); v7.Refresh2();
+    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); v8.Refresh2();
+    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); v9.Refresh2();
+    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); v10.Refresh2();
+    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); v11.Refresh2();
+    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v12.Refresh2();
+    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v13.Refresh2();
+    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); v14.Refresh2();
+    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>(); v15.Refresh2();
+
+    Timer t;
+
+    // --------------------------------------------------
+    // 1–5: small signatures (hit many archetypes)
+    {
+        v1.EachParallel4(executor, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v2.EachParallel4(executor, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v3.EachParallel4(executor, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v4.EachParallel4(executor, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+        v5.EachParallel4(executor, [](auto& p, const auto& v){
+            p.x += v.x; p.y += v.y; p.z += v.z;
+        });
+    }
+
+    // --------------------------------------------------
+    // 6–10: medium signatures
+    {
+        v6.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v7.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v8.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v9.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+        v10.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+        });
+    }
+
+    // --------------------------------------------------
+    // 15: large signatures (few archetypes)
+    {
+        
+        v11.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+        });
+        v12.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+        });
+        v13.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+        });
+        v14.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4,
+            auto& p5, const auto& v5
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+            p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
+        });
+        v15.EachParallel4(executor, [](
+            auto& p,  const auto& v,
+            auto& p2, const auto& v2,
+            auto& p3, const auto& v3,
+            auto& p4, const auto& v4,
+            auto& p5, const auto& v5,
+            auto& p6, const auto& v6
+        ){
+            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
+            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
+            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
+            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
+            p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
+            p6.x += v6.x; p6.y += v6.y; p6.z += v6.z;
+        });
+    }
+
+    
+
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[ECS] [ThreadV2] [MultUpdateSystems] %u entities, archetypes = %zu, time = %.3f ms\n",
         N,
         world.archetypes.size(),
         ms
@@ -1404,6 +1955,399 @@ void BenchmarkFlecs_MultUpdateSystems(){
     );
 }
 
+void BenchmarkFlecs_MultUpdateSystems_Query(){
+    flecs::world world;
+    world.set_threads(0);
+
+    // --------------------------------------------------
+    // Create archetype explosion
+    for(uint32_t i = 0; i < N; ++i){
+        auto e = world.entity();
+
+        if(i & (1 <<  0)) e.set<Position> ({1,2,3});
+        if(i & (1 <<  1)) e.set<Velocity> ({4,5,6});
+        if(i & (1 <<  2)) e.set<Position2>({1,2,3});
+        if(i & (1 <<  3)) e.set<Velocity2>({4,5,6});
+        if(i & (1 <<  4)) e.set<Position3>({1,2,3});
+        if(i & (1 <<  5)) e.set<Velocity3>({4,5,6});
+        if(i & (1 <<  6)) e.set<Position4>({1,2,3});
+        if(i & (1 <<  7)) e.set<Velocity4>({4,5,6});
+
+        if(i & (1 <<  8)) e.set<Position5>({1,2,3});
+        if(i & (1 <<  9)) e.set<Velocity5>({4,5,6});
+        if(i & (1 << 10)) e.set<Position6>({1,2,3});
+        if(i & (1 << 11)) e.set<Velocity6>({4,5,6});
+        if(i & (1 << 12)) e.set<Position7>({1,2,3});
+        if(i & (1 << 13)) e.set<Velocity7>({4,5,6});
+        if(i & (1 << 14)) e.set<Position8>({1,2,3});
+        if(i & (1 << 15)) e.set<Velocity8>({4,5,6});
+    }
+
+    // --------------------------------------------------
+    // Queries (same 15 variants)
+
+    auto q1 = world.query<Position, Velocity>();
+    auto q2 = world.query<Position2, Velocity2>();
+    auto q3 = world.query<Position3, Velocity3>();
+    auto q4 = world.query<Position4, Velocity4>();
+    auto q5 = world.query<Position5, Velocity5>();
+
+    auto q6  = world.query<Position, Velocity, Position2, Velocity2>();
+    auto q7  = world.query<Position3, Velocity3, Position4, Velocity4>();
+    auto q8  = world.query<Position, Velocity, Position3, Velocity3>();
+    auto q9  = world.query<Position2, Velocity2, Position4, Velocity4>();
+    auto q10 = world.query<Position5, Velocity5, Position6, Velocity6>();
+
+    auto q11 = world.query<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3>();
+
+    auto q12 = world.query<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3>();
+
+    auto q13 = world.query<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3,
+        Position4, Velocity4>();
+
+    auto q14 = world.query<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3,
+        Position4, Velocity4,
+        Position5, Velocity5>();
+
+    auto q15 = world.query<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3,
+        Position4, Velocity4,
+        Position5, Velocity5,
+        Position6, Velocity6>();
+
+    // --------------------------------------------------
+    // Run all queries once
+    Timer t;
+
+    q1.each([](Position& p, const Velocity& v){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+    });
+
+    q2.each([](Position2& p, const Velocity2& v){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+    });
+
+    q3.each([](Position3& p, const Velocity3& v){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+    });
+
+    q4.each([](Position4& p, const Velocity4& v){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+    });
+
+    q5.each([](Position5& p, const Velocity5& v){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+    });
+
+    q6.each([](Position& p,const Velocity& v,
+               Position2& p2,const Velocity2& v2){
+        p.x+=v.x;  p.y+=v.y;  p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+    });
+
+    q7.each([](Position3& p,const Velocity3& v,
+               Position4& p2,const Velocity4& v2){
+        p.x+=v.x;  p.y+=v.y;  p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+    });
+
+    q8.each([](Position& p,const Velocity& v,
+               Position3& p2,const Velocity3& v2){
+        p.x+=v.x;  p.y+=v.y;  p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+    });
+
+    q9.each([](Position2& p,const Velocity2& v,
+               Position4& p2,const Velocity4& v2){
+        p.x+=v.x;  p.y+=v.y;  p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+    });
+
+    q10.each([](Position5& p,const Velocity5& v,
+                Position6& p2,const Velocity6& v2){
+        p.x+=v.x;  p.y+=v.y;  p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+    });
+
+    q11.each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3){
+        p.x+=v.x;   p.y+=v.y;   p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+    });
+
+    q13.each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3,
+        Position4& p4,const Velocity4& v4){
+        p.x+=v.x;   p.y+=v.y;   p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+        p4.x+=v4.x; p4.y+=v4.y; p4.z+=v4.z;
+    });
+
+    q14.each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3,
+        Position4& p4,const Velocity4& v4,
+        Position5& p5,const Velocity5& v5){
+        p.x+=v.x;   p.y+=v.y;   p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+        p4.x+=v4.x; p4.y+=v4.y; p4.z+=v4.z;
+        p5.x+=v5.x; p5.y+=v5.y; p5.z+=v5.z;
+    });
+
+    q15.each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3,
+        Position4& p4,const Velocity4& v4,
+        Position5& p5,const Velocity5& v5,
+        Position6& p6,const Velocity6& v6){
+        p.x+=v.x;   p.y+=v.y;   p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+        p4.x+=v4.x; p4.y+=v4.y; p4.z+=v4.z;
+        p5.x+=v5.x; p5.y+=v5.y; p5.z+=v5.z;
+        p6.x+=v6.x; p6.y+=v6.y; p6.z+=v6.z;
+    });
+
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[Flecs] [MultUpdateSystems][Query] %u entities, archetypes = %s, time = %.3f ms\n",
+        N,
+        "X",
+        ms
+    );
+}
+
+void BenchmarkFlecs_MultUpdateSystems_Thread(){
+    flecs::world world;
+    world.set_threads(std::thread::hardware_concurrency());
+
+    // --------------------------------------------------
+    // Create archetype explosion
+    for(uint32_t i = 0; i < N; ++i){
+        auto e = world.entity();
+
+        if(i & (1 <<  0)) e.set<Position>({1,2,3});
+        if(i & (1 <<  1)) e.set<Velocity>({4,5,6});
+        if(i & (1 <<  2)) e.set<Position2>({1,2,3});
+        if(i & (1 <<  3)) e.set<Velocity2>({4,5,6});
+        if(i & (1 <<  4)) e.set<Position3>({1,2,3});
+        if(i & (1 <<  5)) e.set<Velocity3>({4,5,6});
+        if(i & (1 <<  6)) e.set<Position4>({1,2,3});
+        if(i & (1 <<  7)) e.set<Velocity4>({4,5,6});
+
+        if(i & (1 <<  8)) e.set<Position5>({1,2,3});
+        if(i & (1 <<  9)) e.set<Velocity5>({4,5,6});
+        if(i & (1 << 10)) e.set<Position6>({1,2,3});
+        if(i & (1 << 11)) e.set<Velocity6>({4,5,6});
+        if(i & (1 << 12)) e.set<Position7>({1,2,3});
+        if(i & (1 << 13)) e.set<Velocity7>({4,5,6});
+        if(i & (1 << 14)) e.set<Position8>({1,2,3});
+        if(i & (1 << 15)) e.set<Velocity8>({4,5,6});
+    }
+
+    // --------------------------------------------------
+    // Register systems (15 variants)
+
+    // 1–5 small
+    world.system<Position, Velocity>()
+    .multi_threaded()
+        .each([](Position& p, const Velocity& v){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        });
+
+    world.system<Position2, Velocity2>()
+    .multi_threaded()
+        .each([](Position2& p, const Velocity2& v){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        });
+
+    world.system<Position3, Velocity3>()
+    .multi_threaded()
+        .each([](Position3& p, const Velocity3& v){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        });
+
+    world.system<Position4, Velocity4>()
+    .multi_threaded()
+        .each([](Position4& p, const Velocity4& v){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        });
+
+    world.system<Position5, Velocity5>()
+    .multi_threaded()
+        .each([](Position5& p, const Velocity5& v){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        });
+
+    // 6–10 medium
+    world.system<Position, Velocity, Position2, Velocity2>()
+    .multi_threaded()
+        .each([](Position& p,const Velocity& v,
+                 Position2& p2,const Velocity2& v2){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+            p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        });
+
+    world.system<Position3, Velocity3, Position4, Velocity4>()
+    .multi_threaded()
+        .each([](Position3& p,const Velocity3& v,
+                 Position4& p2,const Velocity4& v2){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+            p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        });
+
+    world.system<Position, Velocity, Position3, Velocity3>()
+    .multi_threaded()
+        .each([](Position& p,const Velocity& v,
+                 Position3& p2,const Velocity3& v2){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+            p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        });
+
+    world.system<Position2, Velocity2, Position4, Velocity4>()
+    .multi_threaded()
+        .each([](Position2& p,const Velocity2& v,
+                 Position4& p2,const Velocity4& v2){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+            p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        });
+
+    world.system<Position5, Velocity5, Position6, Velocity6>()
+    .multi_threaded()
+        .each([](Position5& p,const Velocity5& v,
+                 Position6& p2,const Velocity6& v2){
+            p.x+=v.x; p.y+=v.y; p.z+=v.z;
+            p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        });
+
+    // 11–15 large
+    world.system<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3
+    >().multi_threaded().each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3
+    ){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+    });
+
+    world.system<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3
+    >().multi_threaded().each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3
+    ){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+    });
+
+    world.system<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3,
+        Position4, Velocity4
+    >().multi_threaded().each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3,
+        Position4& p4,const Velocity4& v4
+    ){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+        p4.x+=v4.x; p4.y+=v4.y; p4.z+=v4.z;
+    });
+
+    world.system<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3,
+        Position4, Velocity4,
+        Position5, Velocity5
+    >().multi_threaded().each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3,
+        Position4& p4,const Velocity4& v4,
+        Position5& p5,const Velocity5& v5
+    ){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+        p4.x+=v4.x; p4.y+=v4.y; p4.z+=v4.z;
+        p5.x+=v5.x; p5.y+=v5.y; p5.z+=v5.z;
+    });
+
+    world.system<
+        Position, Velocity,
+        Position2, Velocity2,
+        Position3, Velocity3,
+        Position4, Velocity4,
+        Position5, Velocity5,
+        Position6, Velocity6
+    >().multi_threaded().each([](
+        Position& p,const Velocity& v,
+        Position2& p2,const Velocity2& v2,
+        Position3& p3,const Velocity3& v3,
+        Position4& p4,const Velocity4& v4,
+        Position5& p5,const Velocity5& v5,
+        Position6& p6,const Velocity6& v6
+    ){
+        p.x+=v.x; p.y+=v.y; p.z+=v.z;
+        p2.x+=v2.x; p2.y+=v2.y; p2.z+=v2.z;
+        p3.x+=v3.x; p3.y+=v3.y; p3.z+=v3.z;
+        p4.x+=v4.x; p4.y+=v4.y; p4.z+=v4.z;
+        p5.x+=v5.x; p5.y+=v5.y; p5.z+=v5.z;
+        p6.x+=v6.x; p6.y+=v6.y; p6.z+=v6.z;
+    });
+
+
+    // --------------------------------------------------
+    // Run all systems once
+    Timer t;
+    world.progress();
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[Flecs] [Thread] [MultUpdateSystems] %u entities, archetypes = %s, time = %.3f ms\n",
+        N,
+        "X",
+        ms
+    );
+}
+
 int main(){
     RegisterComponent<Position>();
     RegisterComponent<Velocity>();
@@ -1434,6 +2378,11 @@ int main(){
     BenchmarkEnTT_MultUpdateSystems();
     BenchmarkFlecs_MultUpdateSystems();
     std::printf("\n");
+
+    BenchmarkECS_MultUpdateSystems_Thread();
+    BenchmarkECS_MultUpdateSystems_Thread_v2();
+    //BenchmarkFlecs_MultUpdateSystems_Thread();
+    std::printf("\n");
     return 0;*/
 
     std::printf("\n");
@@ -1443,6 +2392,7 @@ int main(){
     BenchmarkFlecs();
     BenchmarkFlecs_System();
     std::printf("\n");
+    //return 0;
     
     BenchmarkECS_Thread();
     BenchmarkFlecs_Thread();
@@ -1472,8 +2422,15 @@ int main(){
     std::printf("\n");
 
     BenchmarkECS_MultUpdateSystems();
+    BenchmarkECS_MultUpdateSystems_Cached();
     BenchmarkEnTT_MultUpdateSystems();
     BenchmarkFlecs_MultUpdateSystems();
+    BenchmarkFlecs_MultUpdateSystems_Query();
+    std::printf("\n");
+
+    BenchmarkECS_MultUpdateSystems_Thread();
+    BenchmarkECS_MultUpdateSystems_Thread_v2();
+    //BenchmarkFlecs_MultUpdateSystems_Thread();
     std::printf("\n");
 
     return 0;
