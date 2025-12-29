@@ -66,7 +66,7 @@ void BenchmarkECS(){
     Timer t;
     
     auto view = world.GetView<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
-    view.NewEach([&](auto& p, const auto& v, auto& p2, const auto& v2, auto& p3, const auto& v3, auto& p4, const auto& v4){
+    view.Each([&](Entity e, auto& p, const auto& v, auto& p2, const auto& v2, auto& p3, const auto& v3, auto& p4, const auto& v4){
         p.x += v.x;
         p.y += v.y;
         p.z += v.z;
@@ -118,12 +118,12 @@ void BenchmarkECS_Thread(){
     tf::Taskflow tf;
 
     auto view = world.GetView<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
-    view.Refresh2();
+    view.CachArchetypes();
 
     Timer t;
     
     //auto view = world.GetView<Position, Velocity, Position2, Velocity2, Position3, Velocity3, Position4, Velocity4>();
-    view.EachParallel5(tf, [&](auto& p, const auto& v, auto& p2, const auto& v2, auto& p3, const auto& v3, auto& p4, const auto& v4){
+    view.EachCachedParallelBatch(tf, [&](Entity e, auto& p, const auto& v, auto& p2, const auto& v2, auto& p3, const auto& v3, auto& p4, const auto& v4){
         p.x += v.x;
         p.y += v.y;
         p.z += v.z;
@@ -425,19 +425,19 @@ void BenchmarkECS_MultUpdateSystems(){
     // --------------------------------------------------
     // 1–5: small signatures (hit many archetypes)
     {
-        v1.Each3([](auto& p, const auto& v){
+        v1.Each([](Entity e, auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v2.Each3([](auto& p, const auto& v){
+        v2.Each([](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v3.Each3([](auto& p, const auto& v){
+        v3.Each([](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v4.Each3([](auto& p, const auto& v){
+        v4.Each([](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v5.Each3([](auto& p, const auto& v){
+        v5.Each([](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
     }
@@ -445,35 +445,35 @@ void BenchmarkECS_MultUpdateSystems(){
     // --------------------------------------------------
     // 6–10: medium signatures
     {
-        v6.Each3([](
+        v6.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v7.Each3([](
+        v7.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v8.Each3([](
+        v8.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v9.Each3([](
+        v9.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v10.Each3([](
+        v10.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
@@ -486,7 +486,7 @@ void BenchmarkECS_MultUpdateSystems(){
     // 15: large signatures (few archetypes)
     {
         
-        v11.Each3([](
+        v11.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3
@@ -495,7 +495,7 @@ void BenchmarkECS_MultUpdateSystems(){
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
         });
-        v12.Each3([](
+        v12.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3
@@ -504,7 +504,7 @@ void BenchmarkECS_MultUpdateSystems(){
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
         });
-        v13.Each3([](
+        v13.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -515,7 +515,7 @@ void BenchmarkECS_MultUpdateSystems(){
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
             p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
         });
-        v14.Each3([](
+        v14.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -528,7 +528,7 @@ void BenchmarkECS_MultUpdateSystems(){
             p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
             p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
         });
-        v15.Each3([](
+        v15.Each([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -583,40 +583,40 @@ void BenchmarkECS_MultUpdateSystems_Cached(){
         world.AddBatch(e, batch);
     }
 
-    auto v1 = world.GetView<Position, Velocity>(); v1.Refresh2();
-    auto v2 = world.GetView<Position2, Velocity2>(); v2.Refresh2();
-    auto v3 = world.GetView<Position3, Velocity3>(); v3.Refresh2();
-    auto v4 = world.GetView<Position4, Velocity4>(); v4.Refresh2();
-    auto v5 = world.GetView<Position5, Velocity5>(); v5.Refresh2();
-    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>(); v6.Refresh2();
-    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>(); v7.Refresh2();
-    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); v8.Refresh2();
-    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); v9.Refresh2();
-    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); v10.Refresh2();
-    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); v11.Refresh2();
-    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v12.Refresh2();
-    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v13.Refresh2();
-    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); v14.Refresh2();
-    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>(); v15.Refresh2();
+    auto v1 = world.GetView<Position, Velocity>(); v1.CachArchetypes();
+    auto v2 = world.GetView<Position2, Velocity2>(); v2.CachArchetypes();
+    auto v3 = world.GetView<Position3, Velocity3>(); v3.CachArchetypes();
+    auto v4 = world.GetView<Position4, Velocity4>(); v4.CachArchetypes();
+    auto v5 = world.GetView<Position5, Velocity5>(); v5.CachArchetypes();
+    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>(); v6.CachArchetypes();
+    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>(); v7.CachArchetypes();
+    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); v8.CachArchetypes();
+    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); v9.CachArchetypes();
+    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); v10.CachArchetypes();
+    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); v11.CachArchetypes();
+    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v12.CachArchetypes();
+    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v13.CachArchetypes();
+    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); v14.CachArchetypes();
+    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>(); v15.CachArchetypes();
 
     Timer t;
 
     // --------------------------------------------------
     // 1–5: small signatures (hit many archetypes)
     {
-        v1.Each5([](auto& p, const auto& v){
+        v1.EachCached([](Entity e, auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v2.Each5([](auto& p, const auto& v){
+        v2.EachCached([](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v3.Each5([](auto& p, const auto& v){
+        v3.EachCached([](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v4.Each5([](auto& p, const auto& v){
+        v4.EachCached([](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v5.Each5([](auto& p, const auto& v){
+        v5.EachCached([](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
     }
@@ -624,35 +624,35 @@ void BenchmarkECS_MultUpdateSystems_Cached(){
     // --------------------------------------------------
     // 6–10: medium signatures
     {
-        v6.Each5([](
+        v6.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v7.Each5([](
+        v7.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v8.Each5([](
+        v8.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v9.Each5([](
+        v9.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v10.Each5([](
+        v10.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
@@ -665,7 +665,7 @@ void BenchmarkECS_MultUpdateSystems_Cached(){
     // 15: large signatures (few archetypes)
     {
         
-        v11.Each5([](
+        v11.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3
@@ -674,7 +674,7 @@ void BenchmarkECS_MultUpdateSystems_Cached(){
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
         });
-        v12.Each5([](
+        v12.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3
@@ -683,7 +683,7 @@ void BenchmarkECS_MultUpdateSystems_Cached(){
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
         });
-        v13.Each5([](
+        v13.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -694,7 +694,7 @@ void BenchmarkECS_MultUpdateSystems_Cached(){
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
             p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
         });
-        v14.Each5([](
+        v14.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -707,7 +707,7 @@ void BenchmarkECS_MultUpdateSystems_Cached(){
             p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
             p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
         });
-        v15.Each5([](
+        v15.EachCached([](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -734,6 +734,7 @@ void BenchmarkECS_MultUpdateSystems_Cached(){
     );
 }
 
+// This is not safe, its only to test raw performace, in real code you will need manual sync for the all system task not write the same component in mult job tasks
 void BenchmarkECS_MultUpdateSystems_Thread(){
     World world;
     tf::Executor executor;
@@ -764,38 +765,38 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
         world.AddBatch(e, batch);
     }
 
-    auto v1 = world.GetView<Position, Velocity>(); v1.Refresh2();
-    auto v2 = world.GetView<Position2, Velocity2>(); v2.Refresh2();
-    auto v3 = world.GetView<Position3, Velocity3>(); v3.Refresh2();
-    auto v4 = world.GetView<Position4, Velocity4>(); v4.Refresh2();
-    auto v5 = world.GetView<Position5, Velocity5>(); v5.Refresh2();
-    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>(); v6.Refresh2();
-    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>(); v7.Refresh2();
-    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); v8.Refresh2();
-    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); v9.Refresh2();
-    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); v10.Refresh2();
-    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); v11.Refresh2();
-    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v12.Refresh2();
-    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v13.Refresh2();
-    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); v14.Refresh2();
-    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>(); v15.Refresh2();
+    auto v1 = world.GetView<Position, Velocity>(); v1.CachArchetypes();
+    auto v2 = world.GetView<Position2, Velocity2>(); v2.CachArchetypes();
+    auto v3 = world.GetView<Position3, Velocity3>(); v3.CachArchetypes();
+    auto v4 = world.GetView<Position4, Velocity4>(); v4.CachArchetypes();
+    auto v5 = world.GetView<Position5, Velocity5>(); v5.CachArchetypes();
+    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>(); v6.CachArchetypes();
+    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>(); v7.CachArchetypes();
+    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); v8.CachArchetypes();
+    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); v9.CachArchetypes();
+    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); v10.CachArchetypes();
+    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); v11.CachArchetypes();
+    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v12.CachArchetypes();
+    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v13.CachArchetypes();
+    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); v14.CachArchetypes();
+    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>(); v15.CachArchetypes();
 
     // --------------------------------------------------
     // 1–5: small signatures (hit many archetypes)
     {
-        v1.EachParallel5_v2(tf, [](auto& p, const auto& v){
+        v1.EachCachedParallelSingle(tf, [](Entity e, auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v2.EachParallel5_v2(tf, [](auto& p, const auto& v){
+        v2.EachCachedParallelSingle(tf, [](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v3.EachParallel5_v2(tf, [](auto& p, const auto& v){
+        v3.EachCachedParallelSingle(tf, [](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v4.EachParallel5_v2(tf, [](auto& p, const auto& v){
+        v4.EachCachedParallelSingle(tf, [](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
-        v5.EachParallel5_v2(tf, [](auto& p, const auto& v){
+        v5.EachCachedParallelSingle(tf, [](auto& p, const auto& v){
             p.x += v.x; p.y += v.y; p.z += v.z;
         });
     }
@@ -803,35 +804,35 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
     // --------------------------------------------------
     // 6–10: medium signatures
     {
-        v6.EachParallel5_v2(tf, [](
+        v6.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v7.EachParallel5_v2(tf, [](
+        v7.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v8.EachParallel5_v2(tf, [](
+        v8.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v9.EachParallel5_v2(tf, [](
+        v9.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
             p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
         });
-        v10.EachParallel5_v2(tf, [](
+        v10.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2
         ){
@@ -844,7 +845,7 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
     // 15: large signatures (few archetypes)
     {
         
-        v11.EachParallel5_v2(tf, [](
+        v11.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3
@@ -853,7 +854,7 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
         });
-        v12.EachParallel5_v2(tf, [](
+        v12.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3
@@ -862,7 +863,7 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
             p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
         });
-        v13.EachParallel5_v2(tf, [](
+        v13.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -873,7 +874,7 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
             p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
             p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
         });
-        v14.EachParallel5_v2(tf, [](
+        v14.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -886,7 +887,7 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
             p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
             p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
         });
-        v15.EachParallel5_v2(tf, [](
+        v15.EachCachedParallelSingle(tf, [](
             auto& p,  const auto& v,
             auto& p2, const auto& v2,
             auto& p3, const auto& v3,
@@ -911,189 +912,6 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
 
     std::printf(
         "[ECS] [Thread] [MultUpdateSystems] %u entities, archetypes = %zu, time = %.3f ms\n",
-        N,
-        world.archetypes.size(),
-        ms
-    );
-}
-
-void BenchmarkECS_MultUpdateSystems_Thread_v2(){
-    World world;
-    tf::Executor executor;
-    tf::Taskflow tf;
-
-    for(uint32_t i = 0; i < N; ++i){
-        Entity e = world.CreateEntity();
-        ComponentBatch batch;
-
-        if(i & (1 <<  0)) batch.Add(Position{1,2,3});
-        if(i & (1 <<  1)) batch.Add(Velocity{4,5,6});
-        if(i & (1 <<  2)) batch.Add(Position2{1,2,3});
-        if(i & (1 <<  3)) batch.Add(Velocity2{4,5,6});
-        if(i & (1 <<  4)) batch.Add(Position3{1,2,3});
-        if(i & (1 <<  5)) batch.Add(Velocity3{4,5,6});
-        if(i & (1 <<  6)) batch.Add(Position4{1,2,3});
-        if(i & (1 <<  7)) batch.Add(Velocity4{4,5,6});
-
-        if(i & (1 <<  8)) batch.Add(Position5{1,2,3});
-        if(i & (1 <<  9)) batch.Add(Velocity5{4,5,6});
-        if(i & (1 << 10)) batch.Add(Position6{1,2,3});
-        if(i & (1 << 11)) batch.Add(Velocity6{4,5,6});
-        if(i & (1 << 12)) batch.Add(Position7{1,2,3});
-        if(i & (1 << 13)) batch.Add(Velocity7{4,5,6});
-        if(i & (1 << 14)) batch.Add(Position8{1,2,3});
-        if(i & (1 << 15)) batch.Add(Velocity8{4,5,6});
-
-        world.AddBatch(e, batch);
-    }
-
-    auto v1 = world.GetView<Position, Velocity>(); v1.Refresh2();
-    auto v2 = world.GetView<Position2, Velocity2>(); v2.Refresh2();
-    auto v3 = world.GetView<Position3, Velocity3>(); v3.Refresh2();
-    auto v4 = world.GetView<Position4, Velocity4>(); v4.Refresh2();
-    auto v5 = world.GetView<Position5, Velocity5>(); v5.Refresh2();
-    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>(); v6.Refresh2();
-    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>(); v7.Refresh2();
-    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); v8.Refresh2();
-    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); v9.Refresh2();
-    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); v10.Refresh2();
-    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); v11.Refresh2();
-    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v12.Refresh2();
-    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v13.Refresh2();
-    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); v14.Refresh2();
-    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>(); v15.Refresh2();
-
-    Timer t;
-
-    // --------------------------------------------------
-    // 1–5: small signatures (hit many archetypes)
-    {
-        v1.EachParallel4(executor, [](auto& p, const auto& v){
-            p.x += v.x; p.y += v.y; p.z += v.z;
-        });
-        v2.EachParallel4(executor, [](auto& p, const auto& v){
-            p.x += v.x; p.y += v.y; p.z += v.z;
-        });
-        v3.EachParallel4(executor, [](auto& p, const auto& v){
-            p.x += v.x; p.y += v.y; p.z += v.z;
-        });
-        v4.EachParallel4(executor, [](auto& p, const auto& v){
-            p.x += v.x; p.y += v.y; p.z += v.z;
-        });
-        v5.EachParallel4(executor, [](auto& p, const auto& v){
-            p.x += v.x; p.y += v.y; p.z += v.z;
-        });
-    }
-
-    // --------------------------------------------------
-    // 6–10: medium signatures
-    {
-        v6.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-        });
-        v7.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-        });
-        v8.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-        });
-        v9.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-        });
-        v10.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-        });
-    }
-
-    // --------------------------------------------------
-    // 15: large signatures (few archetypes)
-    {
-        
-        v11.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2,
-            auto& p3, const auto& v3
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
-        });
-        v12.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2,
-            auto& p3, const auto& v3
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
-        });
-        v13.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2,
-            auto& p3, const auto& v3,
-            auto& p4, const auto& v4
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
-            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
-        });
-        v14.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2,
-            auto& p3, const auto& v3,
-            auto& p4, const auto& v4,
-            auto& p5, const auto& v5
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
-            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
-            p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
-        });
-        v15.EachParallel4(executor, [](
-            auto& p,  const auto& v,
-            auto& p2, const auto& v2,
-            auto& p3, const auto& v3,
-            auto& p4, const auto& v4,
-            auto& p5, const auto& v5,
-            auto& p6, const auto& v6
-        ){
-            p.x  += v.x;  p.y  += v.y;  p.z  += v.z;
-            p2.x += v2.x; p2.y += v2.y; p2.z += v2.z;
-            p3.x += v3.x; p3.y += v3.y; p3.z += v3.z;
-            p4.x += v4.x; p4.y += v4.y; p4.z += v4.z;
-            p5.x += v5.x; p5.y += v5.y; p5.z += v5.z;
-            p6.x += v6.x; p6.y += v6.y; p6.z += v6.z;
-        });
-    }
-
-    
-
-    double ms = t.elapsed_ms();
-
-    std::printf(
-        "[ECS] [ThreadV2] [MultUpdateSystems] %u entities, archetypes = %zu, time = %.3f ms\n",
         N,
         world.archetypes.size(),
         ms
@@ -2375,12 +2193,12 @@ int main(){
     // world.GetComponent != group.get<Position>
 
     /*BenchmarkECS_MultUpdateSystems();
+    BenchmarkECS_MultUpdateSystems_Cached();
     BenchmarkEnTT_MultUpdateSystems();
     BenchmarkFlecs_MultUpdateSystems();
     std::printf("\n");
 
     BenchmarkECS_MultUpdateSystems_Thread();
-    BenchmarkECS_MultUpdateSystems_Thread_v2();
     //BenchmarkFlecs_MultUpdateSystems_Thread();
     std::printf("\n");
     return 0;*/
@@ -2429,7 +2247,6 @@ int main(){
     std::printf("\n");
 
     BenchmarkECS_MultUpdateSystems_Thread();
-    BenchmarkECS_MultUpdateSystems_Thread_v2();
     //BenchmarkFlecs_MultUpdateSystems_Thread();
     std::printf("\n");
 

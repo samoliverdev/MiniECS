@@ -5,13 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
     add_compile_options(/permissive- /Zc:preprocessor /Zc:__cplusplus)
 #endif()
 
-#----------------ECS------------------
-project(ECS)
-file(GLOB_RECURSE ECS_SOURCE_FILES 
-    ECS/Source/*.cpp
-)
-add_library(ECS STATIC ${ECS_SOURCE_FILES})
-
+#----------------Taskflow------------------
 include(FetchContent)
 FetchContent_Declare(
     taskflow
@@ -19,6 +13,14 @@ FetchContent_Declare(
     GIT_TAG v3.7.0 
 )
 FetchContent_MakeAvailable(taskflow)
+
+#----------------ECS------------------
+project(ECS)
+file(GLOB_RECURSE ECS_SOURCE_FILES 
+    ECS/Source/*.cpp
+)
+add_library(ECS STATIC ${ECS_SOURCE_FILES})
+
 target_include_directories(ECS PRIVATE ${taskflow_SOURCE_DIR}/)
 
 #----------------Benchmarks------------------
@@ -41,11 +43,6 @@ FetchContent_MakeAvailable(flecs)
 target_include_directories(Benchmarks PRIVATE ${flecs_SOURCE_DIR}/include)
 target_link_libraries(Benchmarks flecs_static)
 
-FetchContent_Declare(
-    taskflow
-    GIT_REPOSITORY https://github.com/taskflow/taskflow.git
-)
-FetchContent_MakeAvailable(taskflow)
 target_include_directories(Benchmarks PRIVATE ${taskflow_SOURCE_DIR}/)
 
 endif()
@@ -58,6 +55,8 @@ file(GLOB_RECURSE Sample_SOURCE_FILES
 add_executable(Sample ${Sample_SOURCE_FILES})
 target_include_directories(Sample PUBLIC ECS/Source/)
 target_link_libraries(Sample ECS)
+
+target_include_directories(Sample PRIVATE ${taskflow_SOURCE_DIR}/)
 
 #----------------Tests------------------
 if(On) 
@@ -79,5 +78,7 @@ target_link_libraries(Tests ECS)
 target_link_libraries(Tests GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(Tests)
+
+target_include_directories(Tests PRIVATE ${taskflow_SOURCE_DIR}/)
 
 endif()

@@ -343,11 +343,13 @@ template<typename... Cs>
 struct View {
     World* world;
     Signature required;
+
     std::vector<Archetype*> matched; 
 
     struct CachedArch {
         size_t count;
         std::tuple<Cs*...> ptrs;
+        std::vector<Entity>* entities;//New, for now this not slow down the peformace
     };
     std::vector<CachedArch> cached;
 
@@ -355,9 +357,8 @@ struct View {
         (required.set(GetComponentID<Cs>()), ...);
     }
 
-
     template<typename Func>
-    void NewEach(Func&& func){
+    void Each(Func&& func){
         for(auto& archPtr : world->archetypes){
             Archetype& arch = *archPtr;
 
@@ -382,7 +383,154 @@ struct View {
     }
 
     template<typename Func>
-    void Each(Func&& func){
+    void EachCachedParallelBatch(tf::Taskflow& tf, Func&& func){
+        constexpr size_t CHUNK = 512;
+
+        for(auto& c : cached){
+            const size_t count = c.count;
+            if(count == 0) continue;
+
+            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK;
+                const size_t end   = std::min(begin + CHUNK, count);
+
+                tf.emplace([c, func, begin, end](){
+                    std::apply(
+                        [&](auto*... ptrs){
+                        if constexpr (AcceptsEntity<Func, Cs&...>){
+                            ForEachPacked(
+                                begin,
+                                end,
+                                func,
+                                c.entities->data(),
+                                ptrs...
+                            );
+                        } else {
+                            ForEachPacked(
+                                begin,
+                                end,
+                                func,
+                                ptrs...
+                            );
+                        }
+                        },
+                        c.ptrs
+                    );
+                });
+            }
+        }
+    }
+
+    template<typename Func>
+    void EachCachedParallelSingle(tf::Taskflow& tf, Func&& func){
+        constexpr size_t CHUNK = 512;
+
+        tf.emplace([&, func](){
+        for(auto& c : cached){
+            const size_t count = c.count;
+            if(count == 0) continue;
+
+            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
+
+            for(size_t t = 0; t < taskCount; ++t){
+                const size_t begin = t * CHUNK;
+                const size_t end   = std::min(begin + CHUNK, count);
+                    std::apply(
+                        [&](auto*... ptrs){
+                        if constexpr (AcceptsEntity<Func, Cs&...>){
+                            ForEachPacked(
+                                begin,
+                                end,
+                                func,
+                                c.entities->data(),
+                                ptrs...
+                            );
+                        } else {
+                            ForEachPacked(
+                                begin,
+                                end,
+                                func,
+                                ptrs...
+                            );
+                        }
+                        },
+                        c.ptrs
+                    );
+            }
+        }
+        });
+    }
+
+    void CachArchetypes(){
+        cached.clear();
+        cached.reserve(world->archetypes.size());
+
+        for(auto& a : world->archetypes){
+            if(!a->signature.Contains(required))
+                continue;
+
+            CachedArch c;
+            c.count = a->Size();
+            c.ptrs  = std::tuple<Cs*...>{
+                a->GetFast<Cs>()->data.data()...
+            };
+            c.entities = &a->entities;
+
+            cached.emplace_back(c);
+        }
+    }
+
+    template<typename Func>
+    void EachCached(Func&& func){
+        for(auto& c : cached){
+            std::apply(
+                [&](auto*... ptrs){
+                    if constexpr (AcceptsEntity<Func, Cs&...>){
+                        ForEachPacked(
+                            0,
+                            c.count,
+                            func,
+                            c.entities->data(),
+                            ptrs...
+                        );
+                    } else {
+                        ForEachPacked(
+                            0,
+                            c.count,
+                            func,
+                            ptrs...
+                        );
+                    }
+                },
+                c.ptrs
+            );
+        }
+    }
+
+    void CachArchetypes2(){
+        matched.clear();
+        for(auto& a : world->archetypes){
+            if(a->signature.Contains(required)){
+                matched.push_back(a.get());
+            }
+        }
+    }
+
+    template<typename Func>
+    void EachCached2(Func&& func){
+        for(auto* arch: matched){
+            ForEachPacked(
+                0, arch->Size(),
+                func,
+                arch->GetFast<Cs>()->data.data()...
+            );
+        }
+    }
+
+    template<typename Func>
+    void _Each(Func&& func){
         for(auto& archPtr : world->archetypes){
             Archetype& arch = *archPtr;
 
@@ -402,7 +550,7 @@ struct View {
     }
 
     template<typename Func>
-    void Each2(Func&& func){
+    void _Each2(Func&& func){
         for(auto& archPtr : world->archetypes){
             Archetype& arch = *archPtr;
 
@@ -434,7 +582,7 @@ struct View {
     }*/
 
     template<typename Func>
-    void Each3(Func&& func){
+    void _Each3(Func&& func){
         for(auto& archPtr : world->archetypes){
             Archetype& arch = *archPtr;
 
@@ -450,63 +598,8 @@ struct View {
         }
     }
 
-    void Refresh(){
-        matched.clear();
-        for(auto& a : world->archetypes){
-            if(a->signature.Contains(required)){
-                matched.push_back(a.get());
-            }
-        }
-    }
-
     template<typename Func>
-    void Each4(Func&& func){
-        for(auto* arch: matched){
-            ForEachPacked(
-                0, arch->Size(),
-                func,
-                arch->GetFast<Cs>()->data.data()...
-            );
-        }
-    }
-
-    void Refresh2(){
-        cached.clear();
-        cached.reserve(world->archetypes.size());
-
-        for(auto& a : world->archetypes){
-            if(!a->signature.Contains(required))
-                continue;
-
-            CachedArch c;
-            c.count = a->Size();
-            c.ptrs  = std::tuple<Cs*...>{
-                a->GetFast<Cs>()->data.data()...
-            };
-
-            cached.emplace_back(c);
-        }
-    }
-
-    template<typename Func>
-    void Each5(Func&& func){
-        for(auto& c : cached){
-            std::apply(
-                [&](auto*... ptrs){
-                    ForEachPacked(
-                        0,
-                        c.count,
-                        func,
-                        ptrs...
-                    );
-                },
-                c.ptrs
-            );
-        }
-    }
-
-    template<typename Func>
-    void EachWithEntity(Func&& func) {
+    void _EachWithEntity(Func&& func) {
         for(auto& archPtr : world->archetypes){
             Archetype& arch = *archPtr;
 
@@ -527,7 +620,7 @@ struct View {
     }
 
     template<typename Func>
-    void EachParallel(Func&& func){
+    void _EachParallel(Func&& func){
         const uint32_t hw = GetWorkerCount();
 
         for(auto& archPtr : world->archetypes){
@@ -574,7 +667,7 @@ struct View {
     }
 
     template<typename Func>
-    void EachParallel(tf::Executor& executor, Func&& func){
+    void _EachParallel(tf::Executor& executor, Func&& func){
         tf::Taskflow tf;
         const uint32_t hw = executor.num_workers();
 
@@ -618,7 +711,7 @@ struct View {
     }
 
     template<typename Func>
-    void EachParallel2(tf::Executor& executor, Func&& func){
+    void _EachParallel2(tf::Executor& executor, Func&& func){
         tf::Taskflow tf;
 
         constexpr size_t CHUNK_SIZE = 512;
@@ -669,7 +762,7 @@ struct View {
     }
 
     template<typename Func>
-    void EachParallel3(tf::Executor& executor, Func&& func){
+    void _EachParallel3(tf::Executor& executor, Func&& func){
         tf::Taskflow tf;
 
         for(auto& archPtr : world->archetypes){
@@ -712,7 +805,7 @@ struct View {
     }
 
     template<typename Func>
-    void EachParallel4(tf::Executor& executor, Func&& func){
+    void _EachParallel4(tf::Executor& executor, Func&& func){
         tf::Taskflow tf;
 
         for(auto& archPtr : world->archetypes){
@@ -744,7 +837,7 @@ struct View {
     }
     
     template<typename Func>
-    void EachParallel5(tf::Executor& executor, Func&& func){
+    void _EachParallel5(tf::Executor& executor, Func&& func){
         tf::Taskflow tf;
 
         constexpr size_t CHUNK = 512;
@@ -779,68 +872,7 @@ struct View {
     }
 
     template<typename Func>
-    void EachParallel5(tf::Taskflow& tf, Func&& func){
-        constexpr size_t CHUNK = 512;
-
-        for(auto& c : cached){
-            const size_t count = c.count;
-            if(count == 0) continue;
-
-            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
-
-            for(size_t t = 0; t < taskCount; ++t){
-                const size_t begin = t * CHUNK;
-                const size_t end   = std::min(begin + CHUNK, count);
-
-                tf.emplace([c, func, begin, end](){
-                    std::apply(
-                        [&](auto*... ptrs){
-                            ForEachPacked(
-                                begin,
-                                end,
-                                func,
-                                ptrs...
-                            );
-                        },
-                        c.ptrs
-                    );
-                });
-            }
-        }
-    }
-
-    template<typename Func>
-    void EachParallel5_v2(tf::Taskflow& tf, Func&& func){
-        constexpr size_t CHUNK = 512;
-
-        tf.emplace([&, func](){
-        for(auto& c : cached){
-            const size_t count = c.count;
-            if(count == 0) continue;
-
-            const size_t taskCount = (count + CHUNK - 1) / CHUNK;
-
-            for(size_t t = 0; t < taskCount; ++t){
-                const size_t begin = t * CHUNK;
-                const size_t end   = std::min(begin + CHUNK, count);
-                    std::apply(
-                        [&](auto*... ptrs){
-                            ForEachPacked(
-                                begin,
-                                end,
-                                func,
-                                ptrs...
-                            );
-                        },
-                        c.ptrs
-                    );
-            }
-        }
-        });
-    }
-
-    template<typename Func>
-    void EachParallel6(tf::Taskflow& tf, Func&& func){
+    void _EachParallel6(tf::Taskflow& tf, Func&& func){
         for(auto& archPtr : world->archetypes){
             Archetype* arch = archPtr.get();
 
