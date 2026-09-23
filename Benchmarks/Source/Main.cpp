@@ -918,6 +918,64 @@ void BenchmarkECS_MultUpdateSystems_Thread(){
     );
 }
 
+void BenchmarkECS_CachArchetypes(){
+    World world;
+
+    for(uint32_t i = 0; i < N; ++i){
+        Entity e = world.CreateEntity();
+        ComponentBatch batch;
+
+        if(i & (1 <<  0)) batch.Add(Position{1,2,3});
+        if(i & (1 <<  1)) batch.Add(Velocity{4,5,6});
+        if(i & (1 <<  2)) batch.Add(Position2{1,2,3});
+        if(i & (1 <<  3)) batch.Add(Velocity2{4,5,6});
+        if(i & (1 <<  4)) batch.Add(Position3{1,2,3});
+        if(i & (1 <<  5)) batch.Add(Velocity3{4,5,6});
+        if(i & (1 <<  6)) batch.Add(Position4{1,2,3});
+        if(i & (1 <<  7)) batch.Add(Velocity4{4,5,6});
+
+        if(i & (1 <<  8)) batch.Add(Position5{1,2,3});
+        if(i & (1 <<  9)) batch.Add(Velocity5{4,5,6});
+        if(i & (1 << 10)) batch.Add(Position6{1,2,3});
+        if(i & (1 << 11)) batch.Add(Velocity6{4,5,6});
+        if(i & (1 << 12)) batch.Add(Position7{1,2,3});
+        if(i & (1 << 13)) batch.Add(Velocity7{4,5,6});
+        if(i & (1 << 14)) batch.Add(Position8{1,2,3});
+        if(i & (1 << 15)) batch.Add(Velocity8{4,5,6});
+
+        world.AddBatch(e, batch);
+    }
+
+    Timer t;
+
+    world.RemoveEmptyArchetypes();
+
+    auto v1 = world.GetView<Position, Velocity>(); v1.CachArchetypes();
+    auto v2 = world.GetView<Position2, Velocity2>(); v2.CachArchetypes();
+    auto v3 = world.GetView<Position3, Velocity3>(); v3.CachArchetypes();
+    auto v4 = world.GetView<Position4, Velocity4>(); v4.CachArchetypes();
+    auto v5 = world.GetView<Position5, Velocity5>(); v5.CachArchetypes();
+    auto v6 = world.GetView<Position, Velocity,Position2, Velocity2>(); v6.CachArchetypes();
+    auto v7 = world.GetView<Position3, Velocity3,Position4, Velocity4>(); v7.CachArchetypes();
+    auto v8 = world.GetView<Position, Velocity,Position3, Velocity3>(); v8.CachArchetypes();
+    auto v9 = world.GetView<Position2, Velocity2,Position4, Velocity4>(); v9.CachArchetypes();
+    auto v10 = world.GetView<Position5, Velocity5,Position6, Velocity6>(); v10.CachArchetypes();
+    auto v11 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3>(); v11.CachArchetypes();
+    auto v12 = world.GetView<Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v12.CachArchetypes();
+    auto v13 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4>(); v13.CachArchetypes();
+    auto v14 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5>(); v14.CachArchetypes();
+    auto v15 = world.GetView<Position, Velocity,Position2, Velocity2,Position3, Velocity3,Position4, Velocity4,Position5, Velocity5,Position6, Velocity6>(); v15.CachArchetypes();
+
+    double ms = t.elapsed_ms();
+
+    std::printf(
+        "[ECS] [CachArchetypes] %u entities, archetypes = %zu, time = %.3f ms\n",
+        N,
+        world.archetypes.size(),
+        ms
+    );
+}
+
 /////////////////////////////////
 
 void BenchmarkEnTT(){
@@ -2248,6 +2306,9 @@ int main(){
 
     BenchmarkECS_MultUpdateSystems_Thread();
     //BenchmarkFlecs_MultUpdateSystems_Thread();
+    std::printf("\n");
+
+    BenchmarkECS_CachArchetypes();
     std::printf("\n");
 
     return 0;

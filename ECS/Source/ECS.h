@@ -1118,6 +1118,42 @@ struct World {
     size_t archetypeMask = 0;
     size_t archetypeCount = 0;
 
+    void RemoveEmptyArchetypes(){
+        // 1. Remove empty archetypes from storage
+        for(size_t i = 0; i < archetypes.size(); ){
+            Archetype* arch = archetypes[i].get();
+
+            if(arch->Size() == 0) {
+                // Remove unique_ptr by swap-remove
+                archetypes[i] = std::move(archetypes.back());
+                archetypes.pop_back();
+            } else {
+                ++i;
+            }
+        }
+
+        // 2. Rebuild archetype hash table
+        size_t newCapacity = 64;
+        while (newCapacity < archetypes.size() * 2)
+            newCapacity <<= 1;
+
+        InitArchetypeTable(newCapacity);
+
+        for (auto& archPtr : archetypes) {
+            Archetype* arch = archPtr.get();
+
+            size_t h = arch->signature.Hash() & archetypeMask;
+            while (archetypeTable[h].archetype) {
+                h = (h + 1) & archetypeMask;
+            }
+
+            archetypeTable[h].sig = arch->signature;
+            archetypeTable[h].archetype = arch;
+            archetypeCount++;
+        }
+    }
+
+
     void InitArchetypeTable(size_t initialCapacity = 64){
         // must be power of two
         size_t cap = 1;
