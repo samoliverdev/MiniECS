@@ -19,9 +19,23 @@ project(ECS)
 file(GLOB_RECURSE ECS_SOURCE_FILES 
     ECS/Source/*.cpp
 )
-add_library(ECS STATIC ${ECS_SOURCE_FILES})
+option(ECS_BUILD_SHARED "Build ECS as a shared library" ON)
+option(ECS_USE_DLL_SAFE_COMPONENT_IDS "Use exported component ID fields across DLL boundaries" OFF)
+option(ECS_TEST_GET_ID "Use cached type-name IDs across DLL boundaries" ON)
+if(ECS_BUILD_SHARED)
+    add_library(ECS SHARED ${ECS_SOURCE_FILES})
+    target_compile_definitions(ECS PRIVATE ECS_BUILD_DLL)
+    target_compile_definitions(ECS INTERFACE ECS_USE_DLL)
+else()
+    add_library(ECS STATIC ${ECS_SOURCE_FILES})
+endif()
+if(ECS_TEST_GET_ID)
+    target_compile_definitions(ECS PUBLIC TestGetId)
+elseif(ECS_USE_DLL_SAFE_COMPONENT_IDS)
+    target_compile_definitions(ECS PUBLIC UseDLLSafe)
+endif()
 
-target_include_directories(ECS PRIVATE ${taskflow_SOURCE_DIR}/)
+target_include_directories(ECS PUBLIC ECS/Source/ ${taskflow_SOURCE_DIR}/)
 
 #----------------Benchmarks------------------
 if(On) 
@@ -49,14 +63,22 @@ endif()
 
 #----------------Sample------------------
 project(Sample)
-file(GLOB_RECURSE Sample_SOURCE_FILES 
-    Sample/Source/*.cpp
-)
+set(Sample_SOURCE_FILES Sample/Source/Main.cpp)
 add_executable(Sample ${Sample_SOURCE_FILES})
 target_include_directories(Sample PUBLIC ECS/Source/)
 target_link_libraries(Sample ECS)
 
 target_include_directories(Sample PRIVATE ${taskflow_SOURCE_DIR}/)
+
+if(ECS_BUILD_SHARED AND (ECS_USE_DLL_SAFE_COMPONENT_IDS OR ECS_TEST_GET_ID))
+    add_library(SampleEngine SHARED Sample/Source/DllSampleEngine.cpp)
+    target_include_directories(SampleEngine PUBLIC Sample/Source/ ECS/Source/)
+    target_compile_definitions(SampleEngine PRIVATE SAMPLE_ENGINE_BUILD_DLL)
+    target_link_libraries(SampleEngine PUBLIC ECS)
+
+    add_executable(DllComponentSample Sample/Source/DllSampleMain.cpp)
+    target_link_libraries(DllComponentSample PRIVATE SampleEngine ECS)
+endif()
 
 #----------------Tests------------------
 if(On) 

@@ -1,5 +1,12 @@
 #include <gtest/gtest.h>
 #include <cstdio>
+#include "ecs_test_common.h"
+
+CompImplment(Position)
+CompImplment(Velocity)
+CompImplment(Health)
+CompImplment(Renderable)
+CompImplment(Disabled)
 
 void Init(){
     std::printf("Engine Init!\n");

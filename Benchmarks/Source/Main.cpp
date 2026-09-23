@@ -22,23 +22,43 @@ struct Timer {
     }
 };
 
-struct Position { float x, y, z; };
-struct Velocity { float x, y, z; };
-struct Position2 { float x, y, z; };
-struct Velocity2 { float x, y, z; };
-struct Position3 { float x, y, z; };
-struct Velocity3 { float x, y, z; };
-struct Position4 { float x, y, z; };
-struct Velocity4 { float x, y, z; };
 
-struct Position5 { float x, y, z; };
-struct Velocity5 { float x, y, z; };
-struct Position6 { float x, y, z; };
-struct Velocity6 { float x, y, z; };
-struct Position7 { float x, y, z; };
-struct Velocity7 { float x, y, z; };
-struct Position8 { float x, y, z; };
-struct Velocity8 { float x, y, z; };
+struct Position { CompDefinition float x, y, z; };
+struct Velocity { CompDefinition float x, y, z; };
+struct Position2 { CompDefinition float x, y, z; };
+struct Velocity2 { CompDefinition float x, y, z; };
+struct Position3 { CompDefinition float x, y, z; };
+struct Velocity3 { CompDefinition float x, y, z; };
+struct Position4 { CompDefinition float x, y, z; };
+struct Velocity4 { CompDefinition float x, y, z; };
+
+struct Position5 { CompDefinition float x, y, z; };
+struct Velocity5 { CompDefinition float x, y, z; };
+struct Position6 { CompDefinition float x, y, z; };
+struct Velocity6 { CompDefinition float x, y, z; };
+struct Position7 { CompDefinition float x, y, z; };
+struct Velocity7 { CompDefinition float x, y, z; };
+struct Position8 { CompDefinition float x, y, z; };
+struct Velocity8 { CompDefinition float x, y, z; };
+
+CompImplment(Position)
+CompImplment(Velocity)
+CompImplment(Position2)
+CompImplment(Velocity2)
+CompImplment(Position3)
+CompImplment(Velocity3)
+CompImplment(Position4)
+CompImplment(Velocity4)
+CompImplment(Position5)
+CompImplment(Velocity5)
+CompImplment(Position6)
+CompImplment(Velocity6)
+CompImplment(Position7)
+CompImplment(Velocity7)
+CompImplment(Position8)
+CompImplment(Velocity8)
+
+#undef ECS_BENCH_COMPONENT_ID
 
 constexpr uint32_t N = 1'000'000;
 

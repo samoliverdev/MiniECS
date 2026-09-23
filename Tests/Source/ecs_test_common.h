@@ -6,22 +6,27 @@ using namespace ECS;
 
 // Test components
 struct Position {
+    CompDefinition
     float x = 0, y = 0;
 };
 
 struct Velocity {
+    CompDefinition
     float x = 0, y = 0;
 };
 
 struct Health {
+    CompDefinition
     int value = 100;
 };
 
 struct Renderable {
+    CompDefinition
     int data = 0;
 };
 
 struct Disabled {
+    CompDefinition
     int data = 0;
 };
 

@@ -8,16 +8,26 @@
 #include <functional>
 #include <cassert>
 #include <algorithm>
+#include <typeinfo>
 #include <thread>
 #include <mutex>
 #include <taskflow/taskflow.hpp>
 #include <taskflow/algorithm/for_each.hpp>
 
-#define HeadOnly
-//#define UseDLLSafe
+#if defined(UseDLLSafe) && defined(HeadOnly)
+#error "UseDLLSafe requires one shared ComponentFactories implementation; do not define HeadOnly"
+#endif
 
 #ifndef ECS_API
-    #define ECS_API
+    #if defined(_WIN32) && defined(ECS_BUILD_DLL)
+        #define ECS_API __declspec(dllexport)
+    #elif defined(_WIN32) && defined(ECS_USE_DLL)
+        #define ECS_API __declspec(dllimport)
+    #elif defined(__GNUC__) && defined(ECS_BUILD_DLL)
+        #define ECS_API __attribute__((visibility("default")))
+    #else
+        #define ECS_API
+    #endif
 #endif
 
 namespace ECS{
@@ -42,7 +52,25 @@ constexpr uint16_t Invalid = 0xFFFF;
     constexpr uint16_t MaxComponents = 2500*1;
 #endif
 
-#ifndef UseDLLSafe
+struct IComponentArray;
+using ComponentFactory = IComponentArray*(*)();
+
+#if defined(TestGetId)
+ECS_API ComponentID SharedRegistryGetOrCreate(
+    const char* typeName,
+    ComponentFactory factory = nullptr
+);
+
+template<typename T>
+ComponentID GetComponentID(){
+    static const ComponentID id = SharedRegistryGetOrCreate(typeid(T).name());
+    return id;
+}
+
+#define CompDefinition
+#define CompImplment(type)
+
+#elif !defined(UseDLLSafe)
 
 inline ComponentID GetUniqueComponentID(){
     static ComponentID last = 0;
@@ -55,16 +83,19 @@ ComponentID GetComponentID(){
     return id;
 }
 
+#define CompDefinition
+#define CompImplment(type)
+
 #else
 
-#define CompDefinition() static ComponentID typeID
-#define CompImplment(type) static ComponentID type::typeID = InvalidComponentID
+#define CompDefinition static ::ECS::ComponentID typeID;
+#define CompImplment(type) ::ECS::ComponentID type::typeID = ::ECS::InvalidComponentID;
 
-ECS_API ComponentID GetNewComponentID();
+ECS_API ComponentID RegisterComponentType(ComponentID* typeID, ComponentFactory factory);
 
-//INFO: No Tested yet!
 template<typename T>
 ComponentID GetComponentID(){
+    assert(T::typeID != InvalidComponentID && "Component must be registered before use");
     return T::typeID;
 }
 
@@ -195,8 +226,6 @@ struct ComponentArray : IComponentArray {
 
 ////////////////////////////////
 
-using ComponentFactory = IComponentArray*(*)();
-
 #ifdef HeadOnly
 inline std::vector<ComponentFactory>& ComponentFactories(){
     static std::vector<ComponentFactory> f;
@@ -208,17 +237,26 @@ ECS_API std::vector<ComponentFactory>& ComponentFactories();
 
 template<typename T>
 ComponentID RegisterComponent(){
-    #ifdef UseDLLSafe
-    T::typeID = GetNewComponentID();
-    #endif
-
+    #if defined(TestGetId)
+    return SharedRegistryGetOrCreate(
+        typeid(T).name(),
+        []() -> IComponentArray* { return new ComponentArray<T>(); }
+    );
+    #elif defined(UseDLLSafe)
+    return RegisterComponentType(&T::typeID, []() -> IComponentArray* {
+        return new ComponentArray<T>();
+    });
+    #else
     ComponentID id = GetComponentID<T>();
     auto& f = ComponentFactories();
     if(id >= f.size()){
         f.resize(id + 1);
     }
-    f[id] = []() -> IComponentArray* { return new ComponentArray<T>(); };
+    if(f[id] == nullptr){
+        f[id] = []() -> IComponentArray* { return new ComponentArray<T>(); };
+    }
     return id;
+    #endif
 }
 
 ////////////////////////////////
