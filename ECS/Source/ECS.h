@@ -9,6 +9,7 @@
 #include <cassert>
 #include <algorithm>
 #include <thread>
+#include <mutex>
 #include <taskflow/taskflow.hpp>
 #include <taskflow/algorithm/for_each.hpp>
 
@@ -101,11 +102,30 @@ struct Signature{
         return true;
     }
 
+    bool Contains(const Signature& other, size_t chunkCount) const {
+        const size_t chunks = std::min(chunkCount, NumChunks);
+        for(size_t i = 0; i < chunks; ++i){
+            if((bits[i] & other.bits[i]) != other.bits[i]){
+                return false;
+            }
+        }
+        return true;
+    }
+
     bool Intersects(const Signature& other) const {
         for(size_t i = 0; i < NumChunks; ++i){
             if(bits[i] & other.bits[i]){
                 return true;
             }
+        }
+        return false;
+    }
+
+    bool Intersects(const Signature& other, size_t chunkCount) const {
+        const size_t chunks = std::min(chunkCount, NumChunks);
+        for(size_t i = 0; i < chunks; ++i){
+            if(bits[i] & other.bits[i])
+                return true;
         }
         return false;
     }
@@ -302,6 +322,60 @@ struct Archetype{
     }
 };
 
+struct QueryCache {
+    Signature required;
+    Signature excluded;
+    size_t requiredChunkCount = 0;
+    size_t excludedChunkCount = 0;
+    std::vector<ComponentID> componentIDs;
+    std::vector<Archetype*> matched;
+
+    void AddIfMatches(Archetype* archetype){
+        if(archetype->signature.Contains(required, requiredChunkCount) &&
+           !archetype->signature.Intersects(excluded, excludedChunkCount))
+            matched.push_back(archetype);
+    }
+};
+
+class DeferredCommandBuffer {
+    struct State {
+        std::mutex queueMutex;
+        std::mutex playbackMutex;
+        std::vector<std::function<void()>> commands;
+    };
+
+    std::shared_ptr<State> state = std::make_shared<State>();
+
+public:
+    template<typename Func>
+    void Enqueue(Func&& command){
+        std::lock_guard<std::mutex> lock(state->queueMutex);
+        state->commands.emplace_back(std::forward<Func>(command));
+    }
+
+    void Playback(){
+        std::lock_guard<std::mutex> playbackLock(state->playbackMutex);
+        std::vector<std::function<void()>> pending;
+        {
+            std::lock_guard<std::mutex> queueLock(state->queueMutex);
+            pending.swap(state->commands);
+        }
+
+        for(auto& command : pending)
+            command();
+    }
+
+    void Clear(){
+        std::lock_guard<std::mutex> lock(state->queueMutex);
+        state->commands.clear();
+    }
+
+    size_t Size() const {
+        std::lock_guard<std::mutex> lock(state->queueMutex);
+        return state->commands.size();
+    }
+};
+
 ////////////////////////////////
 
 struct World;
@@ -343,40 +417,65 @@ template<typename... Cs>
 struct View {
     World* world;
     Signature required;
-
-    std::vector<Archetype*> matched; 
+    size_t requiredChunkCount = 0;
+    std::shared_ptr<QueryCache> queryCache;
 
     struct CachedArch {
-        size_t count;
-        std::tuple<Cs*...> ptrs;
-        std::vector<Entity>* entities;//New, for now this not slow down the peformace
+        size_t count = 0;
+        std::tuple<Cs*...> ptrs{};
+        std::vector<Entity>* entities = nullptr;
     };
     std::vector<CachedArch> cached;
+    uint64_t cachedVersion = ~uint64_t{0};
 
     View(World* w):world(w){
         (required.set(GetComponentID<Cs>()), ...);
+        ((requiredChunkCount = std::max(
+            requiredChunkCount,
+            static_cast<size_t>(GetComponentID<Cs>() / ChunkBits) + 1
+        )), ...);
+        InitializeQueryCache();
+    }
+
+    void InitializeQueryCache();
+
+    void UpdateDataCache(){
+        if(cachedVersion == world->structuralVersion)
+            return;
+
+        cached.clear();
+        cached.reserve(queryCache->matched.size());
+        for(Archetype* archetype : queryCache->matched){
+            CachedArch& entry = cached.emplace_back();
+            entry.count = archetype->Size();
+            entry.ptrs = std::tuple<Cs*...>{
+                archetype->GetFast<Cs>()->data.data()...
+            };
+            entry.entities = &archetype->entities;
+        }
+        cachedVersion = world->structuralVersion;
     }
 
     template<typename Func>
     void Each(Func&& func){
-        for(auto& archPtr : world->archetypes){
-            Archetype& arch = *archPtr;
-
-            if(!arch.signature.Contains(required)) continue;
+        UpdateDataCache();
+        for(auto& entry : cached){
+            if(entry.count == 0) continue;
 
             if constexpr (AcceptsEntity<Func, Cs&...>){
-                Entity* entities = arch.entities.data();
-                ForEachPacked(
-                    0, arch.Size(),
-                    func,
-                    entities,
-                    arch.GetFast<Cs>()->data.data()...
+                Entity* entities = entry.entities->data();
+                std::apply(
+                    [&](auto*... ptrs){
+                        ForEachPacked(0, entry.count, func, entities, ptrs...);
+                    },
+                    entry.ptrs
                 );
             } else {
-                ForEachPacked(
-                    0, arch.Size(),
-                    func,
-                    arch.GetFast<Cs>()->data.data()...
+                std::apply(
+                    [&](auto*... ptrs){
+                        ForEachPacked(0, entry.count, func, ptrs...);
+                    },
+                    entry.ptrs
                 );
             }
         }
@@ -385,10 +484,13 @@ struct View {
     template<typename Func>
     void EachCachedParallelBatch(tf::Taskflow& tf, Func&& func){
         constexpr size_t CHUNK = 512;
+        UpdateDataCache();
 
-        for(auto& c : cached){
-            const size_t count = c.count;
+        for(auto& entry : cached){
+            const size_t count = entry.count;
             if(count == 0) continue;
+            auto ptrs = entry.ptrs;
+            auto* entities = entry.entities;
 
             const size_t taskCount = (count + CHUNK - 1) / CHUNK;
 
@@ -396,27 +498,27 @@ struct View {
                 const size_t begin = t * CHUNK;
                 const size_t end   = std::min(begin + CHUNK, count);
 
-                tf.emplace([c, func, begin, end](){
+                tf.emplace([componentPtrs = ptrs, entities, func, begin, end](){
                     std::apply(
-                        [&](auto*... ptrs){
+                        [&](auto*... componentArrays){
                         if constexpr (AcceptsEntity<Func, Cs&...>){
                             ForEachPacked(
                                 begin,
                                 end,
                                 func,
-                                c.entities->data(),
-                                ptrs...
+                                entities->data(),
+                                componentArrays...
                             );
                         } else {
                             ForEachPacked(
                                 begin,
                                 end,
                                 func,
-                                ptrs...
+                                componentArrays...
                             );
                         }
                         },
-                        c.ptrs
+                        componentPtrs
                     );
                 });
             }
@@ -426,11 +528,14 @@ struct View {
     template<typename Func>
     void EachCachedParallelSingle(tf::Taskflow& tf, Func&& func){
         constexpr size_t CHUNK = 512;
+        UpdateDataCache();
 
         tf.emplace([&, func](){
-        for(auto& c : cached){
-            const size_t count = c.count;
+        for(auto& entry : cached){
+            const size_t count = entry.count;
             if(count == 0) continue;
+            auto ptrs = entry.ptrs;
+            auto* entities = entry.entities;
 
             const size_t taskCount = (count + CHUNK - 1) / CHUNK;
 
@@ -438,25 +543,25 @@ struct View {
                 const size_t begin = t * CHUNK;
                 const size_t end   = std::min(begin + CHUNK, count);
                     std::apply(
-                        [&](auto*... ptrs){
+                        [&](auto*... componentArrays){
                         if constexpr (AcceptsEntity<Func, Cs&...>){
                             ForEachPacked(
                                 begin,
                                 end,
                                 func,
-                                c.entities->data(),
-                                ptrs...
+                                entities->data(),
+                                componentArrays...
                             );
                         } else {
                             ForEachPacked(
                                 begin,
                                 end,
                                 func,
-                                ptrs...
+                                componentArrays...
                             );
                         }
                         },
-                        c.ptrs
+                        ptrs
                     );
             }
         }
@@ -464,67 +569,56 @@ struct View {
     }
 
     void CachArchetypes(){
-        cached.clear();
-        cached.reserve(world->archetypes.size());
-
-        for(auto& a : world->archetypes){
-            if(!a->signature.Contains(required))
-                continue;
-
-            CachedArch c;
-            c.count = a->Size();
-            c.ptrs  = std::tuple<Cs*...>{
-                a->GetFast<Cs>()->data.data()...
-            };
-            c.entities = &a->entities;
-
-            cached.emplace_back(c);
-        }
+        world->RefreshQueryCache(*queryCache);
+        cachedVersion = ~uint64_t{0};
+        UpdateDataCache();
     }
 
     template<typename Func>
     void EachCached(Func&& func){
-        for(auto& c : cached){
+        UpdateDataCache();
+        for(auto& entry : cached){
+            const size_t count = entry.count;
+            if(count == 0) continue;
             std::apply(
                 [&](auto*... ptrs){
                     if constexpr (AcceptsEntity<Func, Cs&...>){
                         ForEachPacked(
                             0,
-                            c.count,
+                            count,
                             func,
-                            c.entities->data(),
+                            entry.entities->data(),
                             ptrs...
                         );
                     } else {
                         ForEachPacked(
                             0,
-                            c.count,
+                            count,
                             func,
                             ptrs...
                         );
                     }
                 },
-                c.ptrs
+                entry.ptrs
             );
         }
     }
 
     void CachArchetypes2(){
-        matched.clear();
-        for(auto& a : world->archetypes){
-            if(a->signature.Contains(required)){
-                matched.push_back(a.get());
-            }
-        }
+        world->RefreshQueryCache(*queryCache);
+        cachedVersion = ~uint64_t{0};
+        UpdateDataCache();
     }
 
     template<typename Func>
     void EachCached2(Func&& func){
-        for(auto* arch: matched){
-            ForEachPacked(
-                0, arch->Size(),
-                func,
-                arch->GetFast<Cs>()->data.data()...
+        UpdateDataCache();
+        for(auto& entry : cached){
+            std::apply(
+                [&](auto*... ptrs){
+                    ForEachPacked(0, entry.count, func, ptrs...);
+                },
+                entry.ptrs
             );
         }
     }
@@ -841,10 +935,12 @@ struct View {
         tf::Taskflow tf;
 
         constexpr size_t CHUNK = 512;
+        UpdateDataCache();
 
-        for(auto& c : cached){
-            const size_t count = c.count;
+        for(auto& entry : cached){
+            const size_t count = entry.count;
             if(count == 0) continue;
+            auto ptrs = entry.ptrs;
 
             const size_t taskCount = (count + CHUNK - 1) / CHUNK;
 
@@ -852,17 +948,17 @@ struct View {
                 const size_t begin = t * CHUNK;
                 const size_t end   = std::min(begin + CHUNK, count);
 
-                tf.emplace([c, func, begin, end](){
+                tf.emplace([componentPtrs = ptrs, func, begin, end](){
                     std::apply(
-                        [&](auto*... ptrs){
+                        [&](auto*... componentArrays){
                             ForEachPacked(
                                 begin,
                                 end,
                                 func,
-                                ptrs...
+                                componentArrays...
                             );
                         },
-                        c.ptrs
+                        componentPtrs
                     );
                 });
             }
@@ -908,12 +1004,12 @@ struct View {
         std::tuple<Cs*...> ptrs;
 
         void SkipInvalid(){
-            auto& archetypes = view->world->archetypes;
+            auto& archetypes = view->queryCache->matched;
 
             while(archIndex < archetypes.size()){
                 Archetype& arch = *archetypes[archIndex];
 
-                if(arch.signature.Contains(view->required) && arch.Size() > 0){
+                if(arch.Size() > 0){
                     count = arch.Size();
                     ptrs = std::tuple{
                         arch.GetFast<Cs>()->data.data()...
@@ -960,7 +1056,7 @@ struct View {
     };
 
     Iterator begin(){ return Iterator{ this, 0, 0 }; }
-    Iterator end(){ return Iterator{ this, world->archetypes.size(), 0 }; }
+    Iterator end(){ return Iterator{ this, queryCache->matched.size(), 0 }; }
 };
 
 ////////////////////////////////
@@ -976,20 +1072,31 @@ struct ViewWithExclude{
     World* world;
     Signature include;
     Signature exclude;
+    size_t includeChunkCount = 0;
+    size_t excludeChunkCount = 0;
+    std::shared_ptr<QueryCache> queryCache;
 
     template<typename... Es>
     ViewWithExclude(World* w, Exclude<Es...>):world(w){
         (include.set(GetComponentID<Cs>()), ...);
         (exclude.set(GetComponentID<Es>()), ...);
+        ((includeChunkCount = std::max(
+            includeChunkCount,
+            static_cast<size_t>(GetComponentID<Cs>() / ChunkBits) + 1
+        )), ...);
+        ((excludeChunkCount = std::max(
+            excludeChunkCount,
+            static_cast<size_t>(GetComponentID<Es>() / ChunkBits) + 1
+        )), ...);
+        InitializeQueryCache();
     }
+
+    void InitializeQueryCache();
 
     template<typename Func>
     void Each(Func&& func){
-        for(auto& archPtr : world->archetypes){
+        for(Archetype* archPtr : queryCache->matched){
             Archetype& arch = *archPtr;
-
-            if(!arch.signature.Contains(include)) continue;
-            if(arch.signature.Intersects(exclude)) continue;
 
             auto arrays = std::tuple{ arch.Get<Cs>()... };
 
@@ -1066,6 +1173,71 @@ struct World {
     std::vector<EntityLocation> locations;
     std::vector<std::unique_ptr<Archetype>> archetypes;
     std::vector<Entity> freeList;
+    std::vector<std::vector<Archetype*>> archetypesByComponent;
+    std::vector<std::shared_ptr<QueryCache>> queryCaches;
+    DeferredCommandBuffer deferredCommands;
+    uint64_t structuralVersion = 0;
+
+    template<typename Func>
+    void Defer(Func&& command){
+        deferredCommands.Enqueue(std::forward<Func>(command));
+    }
+
+    void PlaybackDeferred(){
+        deferredCommands.Playback();
+    }
+
+    void RefreshQueryCache(QueryCache& query){
+        query.matched.clear();
+
+        if(query.componentIDs.empty()){
+            query.matched.reserve(archetypes.size());
+            for(const auto& archetype : archetypes)
+                query.AddIfMatches(archetype.get());
+            return;
+        }
+
+        const std::vector<Archetype*>* candidates = nullptr;
+        for(ComponentID id : query.componentIDs){
+            if(id >= archetypesByComponent.size()){
+                query.matched.clear();
+                return;
+            }
+
+            const auto& current = archetypesByComponent[id];
+            if(!candidates || current.size() < candidates->size())
+                candidates = &current;
+        }
+
+        if(!candidates) return;
+        query.matched.reserve(candidates->size());
+        for(Archetype* archetype : *candidates)
+            query.AddIfMatches(archetype);
+    }
+
+    std::shared_ptr<QueryCache> RegisterQueryCache(std::shared_ptr<QueryCache> query){
+        for(const auto& existing : queryCaches){
+            if(existing->required == query->required &&
+               existing->excluded == query->excluded)
+                return existing;
+        }
+
+        queryCaches.emplace_back(query);
+        RefreshQueryCache(*query);
+        return query;
+    }
+
+    void TrackArchetype(Archetype* archetype){
+        ++structuralVersion;
+        for(ComponentID id : archetype->componentIDs){
+            if(id >= archetypesByComponent.size())
+                archetypesByComponent.resize(static_cast<size_t>(id) + 1);
+            archetypesByComponent[id].push_back(archetype);
+        }
+
+        for(const auto& query : queryCaches)
+            query->AddIfMatches(archetype);
+    }
 
     Entity CreateEntity(){
         if(!freeList.empty()){
@@ -1100,6 +1272,7 @@ struct World {
         loc.archetype = nullptr;
         loc.index = Invalid;
         freeList.push_back(e);
+        ++structuralVersion;
     }
 
     inline bool IsValid(Entity e){
@@ -1151,6 +1324,19 @@ struct World {
             archetypeTable[h].archetype = arch;
             archetypeCount++;
         }
+
+        archetypesByComponent.clear();
+        for(const auto& archPtr : archetypes){
+            for(ComponentID id : archPtr->componentIDs){
+                if(id >= archetypesByComponent.size())
+                    archetypesByComponent.resize(static_cast<size_t>(id) + 1);
+                archetypesByComponent[id].push_back(archPtr.get());
+            }
+        }
+
+        for(const auto& query : queryCaches)
+            RefreshQueryCache(*query);
+        ++structuralVersion;
     }
 
 
@@ -1203,6 +1389,7 @@ struct World {
             if(!slot.archetype){
                 // Create new archetype
                 archetypes.push_back(std::make_unique<Archetype>(sig));
+                TrackArchetype(archetypes.back().get());
 
                 slot.sig = sig;
                 slot.archetype = archetypes.back().get();
@@ -1227,6 +1414,7 @@ struct World {
         }
 
         archetypes.push_back(std::make_unique<Archetype>(signature));
+        TrackArchetype(archetypes.back().get());
         return archetypes.back().get();
     }
 
@@ -1268,6 +1456,7 @@ struct World {
         loc = { newRow, dst };
 
         batch.Clear();
+        ++structuralVersion;
     }
 
     template<typename T>
@@ -1301,6 +1490,7 @@ struct World {
         dst->entities.push_back(e);
 
         loc = { newRow, dst };
+        ++structuralVersion;
     }
 
     template<typename... Ts>
@@ -1336,6 +1526,7 @@ struct World {
 
         dst->entities.push_back(e);
         loc = { newRow, dst };
+        ++structuralVersion;
     }
 
     template<typename T>
@@ -1365,6 +1556,7 @@ struct World {
 
         // Update entity location
         loc = { newRow, dst };
+        ++structuralVersion;
     }
 
     template<typename T>
@@ -1455,5 +1647,25 @@ struct World {
     }
 
 };
+
+template<typename... Cs>
+void View<Cs...>::InitializeQueryCache(){
+    queryCache = std::make_shared<QueryCache>();
+    queryCache->required = required;
+    queryCache->requiredChunkCount = requiredChunkCount;
+    queryCache->componentIDs = { GetComponentID<Cs>()... };
+    queryCache = world->RegisterQueryCache(std::move(queryCache));
+}
+
+template<typename... Cs>
+void ViewWithExclude<Cs...>::InitializeQueryCache(){
+    queryCache = std::make_shared<QueryCache>();
+    queryCache->required = include;
+    queryCache->excluded = exclude;
+    queryCache->requiredChunkCount = includeChunkCount;
+    queryCache->excludedChunkCount = excludeChunkCount;
+    queryCache->componentIDs = { GetComponentID<Cs>()... };
+    queryCache = world->RegisterQueryCache(std::move(queryCache));
+}
 
 }
